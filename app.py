@@ -42,12 +42,12 @@ st.markdown(
             color: #0f172a;
         }
         .block-container {
-            padding-top: 2rem;
+            padding-top: 1.5rem;
             padding-bottom: 3rem;
-            max-width: 1440px;
+            max-width: 1320px;
         }
         .hero-card {
-            padding: 2.1rem;
+            padding: 2rem;
             border: 1px solid #dbe3ef;
             border-radius: 1.5rem;
             background: #ffffff;
@@ -63,7 +63,7 @@ st.markdown(
         }
         .hero-title {
             color: #0f172a;
-            font-size: 2.7rem;
+            font-size: clamp(2rem, 5vw, 2.7rem);
             line-height: 1.05;
             font-weight: 850;
             margin: 0 0 0.9rem 0;
@@ -71,20 +71,32 @@ st.markdown(
         .hero-subtitle {
             color: #475569;
             max-width: 950px;
-            font-size: 1.05rem;
+            font-size: clamp(0.98rem, 2.4vw, 1.05rem);
             line-height: 1.7;
             margin: 0;
         }
-        .panel-title {
+        .section-label {
             color: #0f172a;
             font-weight: 800;
-            font-size: 1.05rem;
-            margin-bottom: 0.35rem;
+            font-size: 1.08rem;
+            margin-top: 0.25rem;
+            margin-bottom: 0.15rem;
         }
-        .panel-subtitle {
+        .section-help {
             color: #64748b;
-            font-size: 0.9rem;
-            margin-bottom: 1rem;
+            font-size: 0.92rem;
+            margin-bottom: 0.75rem;
+        }
+        .stock-title {
+            color: #0f172a;
+            font-weight: 850;
+            font-size: 1.15rem;
+            margin-bottom: 0.1rem;
+        }
+        .stock-subtitle {
+            color: #64748b;
+            font-size: 0.86rem;
+            margin-bottom: 0.6rem;
         }
         h1, h2, h3, h4, h5, h6, p, label, span, div {
             color: #0f172a;
@@ -99,6 +111,45 @@ st.markdown(
             border-color: #dbe3ef !important;
             background: #ffffff;
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        }
+        div[data-testid="stExpander"] {
+            border: 1px solid #dbe3ef;
+            border-radius: 1.15rem;
+            background: #ffffff;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.055);
+        }
+        div.stButton > button {
+            width: 100%;
+            border-radius: 0.85rem;
+            min-height: 2.65rem;
+            font-weight: 700;
+        }
+        .element-container:has(.js-plotly-plot) {
+            overflow-x: hidden;
+        }
+        @media (max-width: 768px) {
+            .block-container {
+                padding-left: 0.85rem;
+                padding-right: 0.85rem;
+                padding-top: 0.9rem;
+            }
+            .hero-card {
+                padding: 1.25rem;
+                border-radius: 1.1rem;
+            }
+            div[data-testid="stExpander"] {
+                border-radius: 1rem;
+            }
+            div[data-testid="stVerticalBlock"] {
+                gap: 0.55rem;
+            }
+            div.stButton > button {
+                min-height: 2.9rem;
+                font-size: 0.95rem;
+            }
+            .stock-title {
+                font-size: 1.05rem;
+            }
         }
     </style>
     """,
@@ -128,16 +179,13 @@ def normalize_symbol(symbol: str) -> str:
 
 
 def move_symbol(active_watchlist: str, symbol: str, direction: int) -> None:
-    """Move a symbol up (-1) or down (+1) within the active watchlist."""
     symbols = st.session_state.watchlists.get(active_watchlist, [])
     if symbol not in symbols:
         return
-
     current_index = symbols.index(symbol)
     new_index = current_index + direction
     if new_index < 0 or new_index >= len(symbols):
         return
-
     symbols[current_index], symbols[new_index] = symbols[new_index], symbols[current_index]
     st.session_state.watchlists[active_watchlist] = symbols
     save_watchlists(st.session_state.watchlists)
@@ -148,26 +196,16 @@ def move_symbol(active_watchlist: str, symbol: str, direction: int) -> None:
 # ------------------------------------------------------------
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_stock_history(symbol: str, interval: str) -> pd.DataFrame:
-    """
-    Fetch the full available history for the symbol.
-
-    SMA lines are calculated from this full history first, then filtered to the
-    visible chart range. This lets long indicators like SMA 100 and SMA 200
-    appear even when the displayed chart period is only 1mo or 3mo.
-    """
     ticker = yf.Ticker(symbol)
     df = ticker.history(period="max", interval=interval)
-
     if df.empty:
         return pd.DataFrame()
 
     df = df.reset_index()
     df.columns = [str(col).lower().replace(" ", "_") for col in df.columns]
-
     date_col = "date" if "date" in df.columns else "datetime"
     df[date_col] = pd.to_datetime(df[date_col]).dt.tz_localize(None)
     df = df.rename(columns={date_col: "date"})
-
     required = ["date", "open", "high", "low", "close", "volume"]
     return df[required].dropna().sort_values("date").reset_index(drop=True)
 
@@ -175,7 +213,6 @@ def fetch_stock_history(symbol: str, interval: str) -> pd.DataFrame:
 def filter_display_period(df: pd.DataFrame, period: str) -> pd.DataFrame:
     if df.empty:
         return df
-
     latest_date = df["date"].max()
     offsets = {
         "1mo": pd.DateOffset(months=1),
@@ -186,10 +223,8 @@ def filter_display_period(df: pd.DataFrame, period: str) -> pd.DataFrame:
         "5y": pd.DateOffset(years=5),
         "max": None,
     }
-
     if period == "max" or offsets.get(period) is None:
         return df.copy()
-
     start_date = latest_date - offsets[period]
     filtered = df[df["date"] >= start_date].copy()
     return filtered if not filtered.empty else df.tail(1).copy()
@@ -206,14 +241,11 @@ def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
 def add_sma_trace(fig: go.Figure, full_df: pd.DataFrame, display_start: pd.Timestamp, period: int, color: str) -> None:
     if len(full_df) < period:
         return
-
     sma = full_df["close"].rolling(period).mean()
     indicator_df = pd.DataFrame({"date": full_df["date"], "sma": sma})
     indicator_df = indicator_df[indicator_df["date"] >= display_start].dropna()
-
     if indicator_df.empty:
         return
-
     fig.add_trace(
         go.Scatter(
             x=indicator_df["date"],
@@ -228,24 +260,18 @@ def add_sma_trace(fig: go.Figure, full_df: pd.DataFrame, display_start: pd.Times
 def add_bollinger_bands(fig: go.Figure, full_df: pd.DataFrame, display_start: pd.Timestamp, period: int = 20, std_dev: float = 2.0) -> None:
     if len(full_df) < period:
         return
-
     middle = full_df["close"].rolling(period).mean()
     std = full_df["close"].rolling(period).std()
-    upper = middle + std_dev * std
-    lower = middle - std_dev * std
-
     band_df = pd.DataFrame(
         {
             "date": full_df["date"],
-            "upper": upper,
-            "lower": lower,
+            "upper": middle + std_dev * std,
+            "lower": middle - std_dev * std,
         }
     )
     band_df = band_df[band_df["date"] >= display_start].dropna()
-
     if band_df.empty:
         return
-
     fig.add_trace(
         go.Scatter(
             x=band_df["date"],
@@ -294,7 +320,6 @@ def create_candlestick_chart(
         )
     )
 
-    # Indicators are calculated from full history, then shown only over the visible range.
     if indicator_settings["SMA20"]:
         add_sma_trace(fig, full_df, display_start, 20, "#2563eb")
     if indicator_settings["SMA50"]:
@@ -304,7 +329,7 @@ def create_candlestick_chart(
     if indicator_settings["SMA200"]:
         add_sma_trace(fig, full_df, display_start, 200, "#475569")
     if indicator_settings["Bollinger Bands"]:
-        add_bollinger_bands(fig, full_df, display_start, period=20, std_dev=2.0)
+        add_bollinger_bands(fig, full_df, display_start)
 
     if show_volume:
         colors = ["#10b981" if row.close >= row.open else "#ef4444" for row in display_df.itertuples()]
@@ -320,12 +345,7 @@ def create_candlestick_chart(
         )
 
     if show_rsi and len(full_df) >= 14:
-        rsi_df = pd.DataFrame(
-            {
-                "date": full_df["date"],
-                "rsi": calculate_rsi(full_df["close"]),
-            }
-        )
+        rsi_df = pd.DataFrame({"date": full_df["date"], "rsi": calculate_rsi(full_df["close"])})
         rsi_df = rsi_df[rsi_df["date"] >= display_start].dropna()
         if not rsi_df.empty:
             fig.add_trace(
@@ -346,15 +366,15 @@ def create_candlestick_chart(
     fig.update_layout(
         title=dict(
             text=f"{symbol} · ${latest['close']:.2f} · {change_pct:+.2f}%",
-            font=dict(color="#0f172a", size=20),
+            font=dict(color="#0f172a", size=18),
             x=0.01,
         ),
         template="plotly_white",
-        height=520 if show_rsi else 455,
-        margin=dict(l=20, r=20, t=52, b=26),
+        height=500 if show_rsi else 430,
+        margin=dict(l=12, r=12, t=50, b=24),
         paper_bgcolor="#ffffff",
         plot_bgcolor="#f8fafc",
-        font=dict(color="#0f172a", family="Inter, Arial, sans-serif"),
+        font=dict(color="#0f172a", family="Inter, Arial, sans-serif", size=11),
         dragmode=False,
         hovermode="x unified",
         xaxis=dict(
@@ -387,7 +407,7 @@ def create_candlestick_chart(
             y=1.02,
             xanchor="right",
             x=1,
-            font=dict(color="#334155", size=11),
+            font=dict(color="#334155", size=10),
         ),
     )
 
@@ -429,7 +449,7 @@ st.markdown(
         <div class="eyebrow">Market intelligence dashboard</div>
         <h1 class="hero-title">Professional Stock Watchlist Monitor</h1>
         <p class="hero-subtitle">
-            Build watchlists, add tickers, reorder your stocks, and review fixed-position candlestick charts with long-horizon indicators calculated from full historical data.
+            Build watchlists, reorder stocks, and review fixed-position candlestick charts with long-horizon indicators calculated from full historical data.
         </p>
     </div>
     """,
@@ -438,47 +458,61 @@ st.markdown(
 st.write("")
 
 # ------------------------------------------------------------
-# Main-page controls
+# Main-page controls: mobile-friendly expanders
 # ------------------------------------------------------------
 watchlist_names = list(st.session_state.watchlists.keys())
 if st.session_state.active_watchlist not in watchlist_names and watchlist_names:
     st.session_state.active_watchlist = watchlist_names[0]
 
-control_left, control_mid, control_right = st.columns([1.05, 1.05, 1.2])
-
-with control_left:
-    st.markdown('<div class="panel-title">Watchlist selection</div>', unsafe_allow_html=True)
-    st.markdown('<div class="panel-subtitle">Choose or create your lists.</div>', unsafe_allow_html=True)
-
+with st.expander("Watchlist management", expanded=True):
+    st.markdown('<div class="section-label">Select active watchlist</div>', unsafe_allow_html=True)
     selected = st.selectbox(
         "Active watchlist",
         watchlist_names,
         index=watchlist_names.index(st.session_state.active_watchlist),
+        label_visibility="collapsed",
     )
     st.session_state.active_watchlist = selected
 
-    new_watchlist = st.text_input("New watchlist name", placeholder="e.g. Dividend Picks")
-    if st.button("＋ Create watchlist", use_container_width=True):
-        name = new_watchlist.strip()
-        if not name:
-            st.warning("Please enter a watchlist name.")
-        elif name in st.session_state.watchlists:
-            st.warning("A watchlist with this name already exists.")
+    st.markdown('<div class="section-label">Add stock ticker</div>', unsafe_allow_html=True)
+    with st.form("add_symbol_form", clear_on_submit=True):
+        symbol_input = st.text_input(
+            "Ticker symbol",
+            placeholder="AAPL, TSLA, BHP.AX, CBA.AX, BTC-USD",
+            label_visibility="collapsed",
+        )
+        submitted = st.form_submit_button("Add stock")
+
+    if submitted:
+        active = st.session_state.active_watchlist
+        symbols = st.session_state.watchlists.get(active, [])
+        symbol = normalize_symbol(symbol_input)
+        if not symbol:
+            st.warning("Please enter a ticker symbol.")
+        elif symbol in symbols:
+            st.info(f"{symbol} is already in {active}.")
         else:
-            st.session_state.watchlists[name] = []
-            st.session_state.active_watchlist = name
+            st.session_state.watchlists[active].append(symbol)
             save_watchlists(st.session_state.watchlists)
             st.rerun()
 
-with control_mid:
-    st.markdown('<div class="panel-title">Manage selected list</div>', unsafe_allow_html=True)
-    st.markdown('<div class="panel-subtitle">Rename the current list or remove it.</div>', unsafe_allow_html=True)
+    with st.expander("Create, rename, or delete watchlists", expanded=False):
+        st.markdown('<div class="section-help">These actions are saved to watchlists.json.</div>', unsafe_allow_html=True)
+        new_watchlist = st.text_input("New watchlist name", placeholder="e.g. Dividend Picks")
+        if st.button("＋ Create watchlist"):
+            name = new_watchlist.strip()
+            if not name:
+                st.warning("Please enter a watchlist name.")
+            elif name in st.session_state.watchlists:
+                st.warning("A watchlist with this name already exists.")
+            else:
+                st.session_state.watchlists[name] = []
+                st.session_state.active_watchlist = name
+                save_watchlists(st.session_state.watchlists)
+                st.rerun()
 
-    rename_value = st.text_input("Rename selected watchlist", value=st.session_state.active_watchlist)
-    rename_col, delete_col = st.columns(2)
-
-    with rename_col:
-        if st.button("Rename", use_container_width=True):
+        rename_value = st.text_input("Rename selected watchlist", value=st.session_state.active_watchlist)
+        if st.button("Rename selected watchlist"):
             old_name = st.session_state.active_watchlist
             new_name = rename_value.strip()
             if not new_name:
@@ -491,37 +525,27 @@ with control_mid:
                 save_watchlists(st.session_state.watchlists)
                 st.rerun()
 
-    with delete_col:
-        if st.button("Delete", use_container_width=True, disabled=len(st.session_state.watchlists) <= 1):
+        if st.button("Delete selected watchlist", disabled=len(st.session_state.watchlists) <= 1):
             st.session_state.watchlists.pop(st.session_state.active_watchlist, None)
             st.session_state.active_watchlist = next(iter(st.session_state.watchlists.keys()))
             save_watchlists(st.session_state.watchlists)
             st.rerun()
 
-with control_right:
-    st.markdown('<div class="panel-title">Market data settings</div>', unsafe_allow_html=True)
-    st.markdown('<div class="panel-subtitle">Indicators use full history; period only controls the visible chart range.</div>', unsafe_allow_html=True)
+with st.expander("Chart settings and indicators", expanded=True):
+    st.markdown('<div class="section-help">Indicators use full historical data; visible period only controls what part of the chart is displayed.</div>', unsafe_allow_html=True)
+    period = st.selectbox("Visible period", ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"], index=1)
+    interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
 
-    settings_col1, settings_col2 = st.columns(2)
-    with settings_col1:
-        period = st.selectbox("Visible period", ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"], index=1)
-    with settings_col2:
-        interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
-
-    indicator_col1, indicator_col2, indicator_col3 = st.columns(3)
-    with indicator_col1:
-        show_sma20 = st.toggle("SMA 20", value=True)
-        show_sma50 = st.toggle("SMA 50", value=False)
-    with indicator_col2:
-        show_sma100 = st.toggle("SMA 100", value=False)
-        show_sma200 = st.toggle("SMA 200", value=False)
-    with indicator_col3:
-        show_bollinger = st.toggle("Bollinger Bands", value=False)
-        show_volume = st.toggle("Volume", value=True)
-
+    st.markdown('<div class="section-label">Indicators</div>', unsafe_allow_html=True)
+    show_sma20 = st.toggle("SMA 20", value=True)
+    show_sma50 = st.toggle("SMA 50", value=False)
+    show_sma100 = st.toggle("SMA 100", value=False)
+    show_sma200 = st.toggle("SMA 200", value=False)
+    show_bollinger = st.toggle("Bollinger Bands", value=False)
+    show_volume = st.toggle("Volume", value=True)
     show_rsi = st.toggle("RSI 14", value=False)
 
-    if st.button("Refresh market data", use_container_width=True):
+    if st.button("Refresh market data"):
         fetch_stock_history.clear()
         st.rerun()
 
@@ -536,87 +560,55 @@ indicator_settings = {
 st.divider()
 
 # ------------------------------------------------------------
-# Main watchlist area
+# Watchlist charts
 # ------------------------------------------------------------
 active = st.session_state.active_watchlist
 symbols = st.session_state.watchlists.get(active, [])
 
-list_title_col, add_symbol_col = st.columns([1.1, 1])
-
-with list_title_col:
-    st.subheader(active)
-    st.caption(f"{len(symbols)} stock(s) in this watchlist")
-
-with add_symbol_col:
-    with st.form("add_symbol_form", clear_on_submit=True):
-        symbol_input = st.text_input(
-            "Add stock ticker",
-            placeholder="AAPL, TSLA, BHP.AX, CBA.AX, BTC-USD",
-            label_visibility="collapsed",
-        )
-        submitted = st.form_submit_button("Add stock", use_container_width=True)
-
-    if submitted:
-        symbol = normalize_symbol(symbol_input)
-        if not symbol:
-            st.warning("Please enter a ticker symbol.")
-        elif symbol in symbols:
-            st.info(f"{symbol} is already in {active}.")
-        else:
-            st.session_state.watchlists[active].append(symbol)
-            save_watchlists(st.session_state.watchlists)
-            st.rerun()
-
-st.divider()
+st.subheader(active)
+st.caption(f"{len(symbols)} stock(s) in this watchlist")
 
 if not symbols:
     st.info("This watchlist is empty. Add a ticker above to show its candlestick chart.")
 else:
     for index, symbol in enumerate(symbols):
-        chart_col, action_col = st.columns([0.86, 0.14])
+        with st.container(border=True):
+            st.markdown(f'<div class="stock-title">{index + 1}. {symbol}</div>', unsafe_allow_html=True)
+            st.markdown('<div class="stock-subtitle">Use the management section below to reorder or remove this stock.</div>', unsafe_allow_html=True)
 
-        with action_col:
-            st.write("")
-            st.write("")
-            move_up_disabled = index == 0
-            move_down_disabled = index == len(symbols) - 1
+            with st.expander(f"Manage {symbol}", expanded=False):
+                if st.button("↑ Move up", key=f"up-{active}-{symbol}", disabled=index == 0):
+                    move_symbol(active, symbol, -1)
+                    st.rerun()
+                if st.button("↓ Move down", key=f"down-{active}-{symbol}", disabled=index == len(symbols) - 1):
+                    move_symbol(active, symbol, 1)
+                    st.rerun()
+                if st.button("Remove from watchlist", key=f"remove-{active}-{symbol}"):
+                    st.session_state.watchlists[active] = [item for item in symbols if item != symbol]
+                    save_watchlists(st.session_state.watchlists)
+                    st.rerun()
 
-            if st.button("↑ Up", key=f"up-{active}-{symbol}", use_container_width=True, disabled=move_up_disabled):
-                move_symbol(active, symbol, -1)
-                st.rerun()
+            with st.spinner(f"Loading {symbol} from yfinance..."):
+                full_df = fetch_stock_history(symbol, interval)
 
-            if st.button("↓ Down", key=f"down-{active}-{symbol}", use_container_width=True, disabled=move_down_disabled):
-                move_symbol(active, symbol, 1)
-                st.rerun()
+            if full_df.empty:
+                st.error(f"No data found for {symbol}. Check the ticker symbol or interval.")
+                continue
 
-            if st.button("Remove", key=f"remove-{active}-{symbol}", use_container_width=True):
-                st.session_state.watchlists[active] = [item for item in symbols if item != symbol]
-                save_watchlists(st.session_state.watchlists)
-                st.rerun()
+            display_df = filter_display_period(full_df, period)
 
-        with chart_col:
-            with st.container(border=True):
-                with st.spinner(f"Loading {symbol} from yfinance..."):
-                    full_df = fetch_stock_history(symbol, interval)
+            if len(full_df) < 200 and show_sma200:
+                st.caption(f"{symbol}: SMA 200 needs at least 200 data points. Available: {len(full_df)}.")
 
-                if full_df.empty:
-                    st.error(f"No data found for {symbol}. Check the ticker symbol or interval.")
-                    continue
-
-                display_df = filter_display_period(full_df, period)
-
-                if len(full_df) < 200 and show_sma200:
-                    st.caption(f"{symbol}: SMA 200 needs at least 200 data points. Available: {len(full_df)}.")
-
-                fig = create_candlestick_chart(
-                    symbol=symbol,
-                    full_df=full_df,
-                    display_df=display_df,
-                    indicator_settings=indicator_settings,
-                    show_volume=show_volume,
-                    show_rsi=show_rsi,
-                )
-                st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
+            fig = create_candlestick_chart(
+                symbol=symbol,
+                full_df=full_df,
+                display_df=display_df,
+                indicator_settings=indicator_settings,
+                show_volume=show_volume,
+                show_rsi=show_rsi,
+            )
+            st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
 
 st.caption(
     "Data is provided through yfinance/Yahoo Finance. This dashboard is for educational and informational use only, not financial advice."
