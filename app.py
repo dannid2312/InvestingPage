@@ -15,7 +15,6 @@ DEFAULT_WATCHLISTS = {
     "ASX Watchlist": ["BHP.AX", "CBA.AX", "WES.AX"],
 }
 PLOT_CONFIG = {"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "showTips": False, "staticPlot": True, "responsive": True}
-CHART_RATIOS = {"Compact 16:9": 9 / 16, "Balanced 4:3": 3 / 4, "Tall mobile 1:1": 1.0}
 
 st.markdown("""
 <style>
@@ -242,7 +241,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
         template="plotly_white",
         autosize=True,
         height=total_height,
-        margin=dict(l=0, r=0, t=0, b=0),
+        margin=dict(l=6, r=6, t=0, b=0),
         paper_bgcolor="#fff",
         plot_bgcolor="#f8fafc",
         dragmode=False,
@@ -275,6 +274,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             fixedrange=True,
             domain=domains.get("volume", [0, 0]),
             visible=show_volume,
+            side="right",
             showticklabels=show_volume,
             tickfont=dict(size=8),
             nticks=2,
@@ -282,41 +282,92 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             showgrid=False,
             zeroline=False,
         ),
+        yaxis5=dict(
+            title_text="",
+            overlaying="y",
+            side="left",
+            fixedrange=True,
+            showticklabels=True,
+            tickformat=".2f",
+            nticks=5,
+            tickfont=dict(size=8),
+            showgrid=False,
+            zeroline=False,
+        ),
+        yaxis6=dict(
+            title_text="",
+            overlaying="y2",
+            side="left",
+            fixedrange=True,
+            visible=show_volume,
+            showticklabels=show_volume,
+            nticks=2,
+            tickfont=dict(size=8),
+            showgrid=False,
+            zeroline=False,
+        ),
     )
 
     if show_rsi:
-        fig.update_layout(yaxis3=dict(
-            title_text="",
-            domain=domains.get("rsi", [0, 0]),
-            range=[0, 100],
-            fixedrange=True,
-            side="right",
-            nticks=3,
-            showticklabels=True,
-            showgrid=True,
-            gridcolor="#e2e8f0",
-            zeroline=False,
-            automargin=True,
-            tickfont=dict(size=8),
-        ))
+        fig.update_layout(
+            yaxis3=dict(
+                title_text="",
+                domain=domains.get("rsi", [0, 0]),
+                range=[0, 100],
+                fixedrange=True,
+                side="right",
+                nticks=3,
+                showticklabels=True,
+                showgrid=True,
+                gridcolor="#e2e8f0",
+                zeroline=False,
+                automargin=True,
+                tickfont=dict(size=8),
+            ),
+            yaxis7=dict(
+                title_text="",
+                overlaying="y3",
+                side="left",
+                range=[0, 100],
+                fixedrange=True,
+                nticks=3,
+                showticklabels=True,
+                tickfont=dict(size=8),
+                showgrid=False,
+                zeroline=False,
+            ),
+        )
         fig.add_hline(y=70, line_dash="dot", line_color="#dc2626", opacity=.55, yref="y3")
         fig.add_hline(y=30, line_dash="dot", line_color="#059669", opacity=.55, yref="y3")
 
     if show_macd:
-        fig.update_layout(yaxis4=dict(
-            title_text="",
-            domain=domains.get("macd", [0, 0]),
-            fixedrange=True,
-            side="right",
-            nticks=3,
-            showticklabels=True,
-            showgrid=True,
-            gridcolor="#e2e8f0",
-            zeroline=True,
-            zerolinecolor="#94a3b8",
-            automargin=True,
-            tickfont=dict(size=8),
-        ))
+        fig.update_layout(
+            yaxis4=dict(
+                title_text="",
+                domain=domains.get("macd", [0, 0]),
+                fixedrange=True,
+                side="right",
+                nticks=3,
+                showticklabels=True,
+                showgrid=True,
+                gridcolor="#e2e8f0",
+                zeroline=True,
+                zerolinecolor="#94a3b8",
+                automargin=True,
+                tickfont=dict(size=8),
+            ),
+            yaxis8=dict(
+                title_text="",
+                overlaying="y4",
+                side="left",
+                fixedrange=True,
+                nticks=3,
+                showticklabels=True,
+                tickfont=dict(size=8),
+                showgrid=False,
+                zeroline=False,
+            ),
+        )
 
     for trace in fig.data:
         trace.showlegend = False
@@ -401,9 +452,13 @@ with st.expander("Watchlist management", expanded=True):
             st.rerun()
 
 with st.expander("Chart settings and indicators", expanded=True):
-    st.markdown('<div class="section-help">SMA, Bollinger, RSI, and MACD calculations use full historical data. Volume, RSI, and MACD each get their own lower panel when enabled.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-help">SMA, Bollinger, RSI, and MACD calculations use full historical data. Volume, RSI, and MACD each get their own lower panel when enabled. Set your own width x height chart ratio below.</div>', unsafe_allow_html=True)
     interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
-    ratio_name = st.selectbox("Chart ratio", list(CHART_RATIOS.keys()), index=0)
+    ratio_col1, ratio_col2 = st.columns(2)
+    with ratio_col1:
+        ratio_width = st.number_input("Chart ratio width", min_value=1.0, max_value=50.0, value=16.0, step=1.0)
+    with ratio_col2:
+        ratio_height = st.number_input("Chart ratio height", min_value=1.0, max_value=50.0, value=9.0, step=1.0)
     max_points = st.select_slider("Visible recent candles", options=[20, 30, 45, 60, 75, 90, 120, 180], value=60)
     st.markdown('<div class="section-label">Indicators</div>', unsafe_allow_html=True)
     show_sma20 = st.toggle("SMA 20", value=True)
@@ -419,7 +474,7 @@ with st.expander("Chart settings and indicators", expanded=True):
         st.rerun()
 
 settings = {"SMA20": show_sma20, "SMA50": show_sma50, "SMA100": show_sma100, "SMA200": show_sma200, "Bollinger Bands": show_bbands}
-chart_ratio = CHART_RATIOS[ratio_name]
+chart_ratio = ratio_height / ratio_width
 
 st.divider()
 active = st.session_state.active_watchlist
