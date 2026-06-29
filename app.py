@@ -103,12 +103,23 @@ def rsi(close, period=14):
     return 100 - (100 / (1 + rs))
 
 
-def overlay_label(settings, show_volume, show_rsi):
+def macd(close, fast=12, slow=26, signal=9):
+    fast_ema = close.ewm(span=fast, adjust=False).mean()
+    slow_ema = close.ewm(span=slow, adjust=False).mean()
+    macd_line = fast_ema - slow_ema
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    histogram = macd_line - signal_line
+    return macd_line, signal_line, histogram
+
+
+def overlay_label(settings, show_volume, show_rsi, show_macd):
     items = [name.replace("SMA", "SMA ") for name, enabled in settings.items() if enabled]
     if show_volume:
         items.append("Volume")
     if show_rsi:
         items.append("RSI 14")
+    if show_macd:
+        items.append("MACD")
     return " · ".join(items) if items else "No overlays"
 
 
@@ -134,30 +145,179 @@ def add_bbands(fig, full_df, display_df, start_date):
     fig.add_trace(go.Scatter(x=data["display_index"], y=data["lower"], mode="lines", name="", showlegend=False, line=dict(color="#9333ea", width=1.3, dash="dot"), fill="tonexty", fillcolor="rgba(147,51,234,.08)", hoverinfo="skip"))
 
 
-def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, chart_ratio):
+def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, chart_ratio):
     start_date = display_df["date"].min()
     display_df = add_index(display_df)
-    height = max(300, min(620, int(620 * chart_ratio))) + (85 if show_rsi else 0)
+
+    # Treat Volume, RSI, and MACD as true lower panels.
+    # The main candlestick area follows the selected chart ratio; each enabled lower
+    # panel adds its own predictable height so the chart does not become cramped.
+    price_height = max(300, min(620, int(620 * chart_ratio)))
+    panel_heights = []
+    if show_macd:
+        panel_heights.append(("macd", 95))
+    if show_rsi:
+        panel_heights.append(("rsi", 85))
+    if show_volume:
+        panel_heights.append(("volume", 65))
+
+    gap_height = 12
+    total_gap_height = gap_height * len(panel_heights)
+    total_height = price_height + sum(height for _, height in panel_heights) + total_gap_height
+
+    domains = {}
+    cursor = 0
+    for panel_name, panel_height in panel_heights:
+        domains[panel_name] = [cursor / total_height, (cursor + panel_height) / total_height]
+        cursor += panel_height + gap_height
+    domains["price"] = [cursor / total_height, 1.0]
+
     fig = go.Figure()
-    fig.add_trace(go.Candlestick(x=display_df["display_index"], open=display_df["open"], high=display_df["high"], low=display_df["low"], close=display_df["close"], name="", showlegend=False, increasing_line_color="#059669", decreasing_line_color="#dc2626", increasing_fillcolor="#10b981", decreasing_fillcolor="#ef4444", hoverinfo="skip"))
-    if settings["SMA20"]: add_sma(fig, full_df, display_df, start_date, 20, "#2563eb")
-    if settings["SMA50"]: add_sma(fig, full_df, display_df, start_date, 50, "#f97316")
-    if settings["SMA100"]: add_sma(fig, full_df, display_df, start_date, 100, "#0891b2")
-    if settings["SMA200"]: add_sma(fig, full_df, display_df, start_date, 200, "#475569")
-    if settings["Bollinger Bands"]: add_bbands(fig, full_df, display_df, start_date)
+    fig.add_trace(go.Candlestick(
+        x=display_df["display_index"],
+        open=display_df["open"],
+        high=display_df["high"],
+        low=display_df["low"],
+        close=display_df["close"],
+        name="",
+        showlegend=False,
+        increasing_line_color="#059669",
+        decreasing_line_color="#dc2626",
+        increasing_fillcolor="#10b981",
+        decreasing_fillcolor="#ef4444",
+        hoverinfo="skip",
+    ))
+
+    if settings["SMA20"]:
+        add_sma(fig, full_df, display_df, start_date, 20, "#2563eb")
+    if settings["SMA50"]:
+        add_sma(fig, full_df, display_df, start_date, 50, "#f97316")
+    if settings["SMA100"]:
+        add_sma(fig, full_df, display_df, start_date, 100, "#0891b2")
+    if settings["SMA200"]:
+        add_sma(fig, full_df, display_df, start_date, 200, "#475569")
+    if settings["Bollinger Bands"]:
+        add_bbands(fig, full_df, display_df, start_date)
+
     if show_volume:
         colors = ["#10b981" if row.close >= row.open else "#ef4444" for row in display_df.itertuples()]
-        fig.add_trace(go.Bar(x=display_df["display_index"], y=display_df["volume"], name="", showlegend=False, marker_color=colors, opacity=.22, yaxis="y2", hoverinfo="skip"))
+        fig.add_trace(go.Bar(
+            x=display_df["display_index"],
+            y=display_df["volume"],
+            name="",
+            showlegend=False,
+            marker_color=colors,
+            opacity=.22,
+            yaxis="y2",
+            hoverinfo="skip",
+        ))
+
     if show_rsi and len(full_df) >= 14:
         rr = pd.DataFrame({"date": full_df["date"], "value": rsi(full_df["close"])})
         rr = rr[rr["date"] >= start_date].dropna().merge(display_df[["date", "display_index"]], on="date", how="inner")
         if not rr.empty:
-            fig.add_trace(go.Scatter(x=rr["display_index"], y=rr["value"], mode="lines", name="", showlegend=False, line=dict(color="#7c3aed", width=2), yaxis="y3", hoverinfo="skip"))
-    fig.update_layout(title_text="", template="plotly_white", autosize=True, height=height, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="#fff", plot_bgcolor="#f8fafc", dragmode=False, hovermode=False, showlegend=False, font=dict(size=9, color="#0f172a"), xaxis=dict(title_text="", rangeslider=dict(visible=False), fixedrange=True, showticklabels=False, ticks="", showgrid=False, zeroline=False), yaxis=dict(title_text="", fixedrange=True, side="right", tickformat=".2f", nticks=5, automargin=True, showgrid=True, gridcolor="#e2e8f0", zeroline=False, domain=[0.22 if not show_rsi else 0.42, 1.0]), yaxis2=dict(title_text="", fixedrange=True, domain=[0.0, 0.15], visible=show_volume, showticklabels=False, ticks="", showgrid=False, zeroline=False))
+            fig.add_trace(go.Scatter(
+                x=rr["display_index"],
+                y=rr["value"],
+                mode="lines",
+                name="",
+                showlegend=False,
+                line=dict(color="#7c3aed", width=2),
+                yaxis="y3",
+                hoverinfo="skip",
+            ))
+
+    if show_macd and len(full_df) >= 35:
+        macd_line, signal_line, histogram = macd(full_df["close"])
+        mm = pd.DataFrame({"date": full_df["date"], "macd": macd_line, "signal": signal_line, "hist": histogram})
+        mm = mm[mm["date"] >= start_date].dropna().merge(display_df[["date", "display_index"]], on="date", how="inner")
+        if not mm.empty:
+            hist_colors = ["#10b981" if value >= 0 else "#ef4444" for value in mm["hist"]]
+            fig.add_trace(go.Bar(x=mm["display_index"], y=mm["hist"], name="", showlegend=False, marker_color=hist_colors, opacity=.35, yaxis="y4", hoverinfo="skip"))
+            fig.add_trace(go.Scatter(x=mm["display_index"], y=mm["macd"], mode="lines", name="", showlegend=False, line=dict(color="#2563eb", width=1.8), yaxis="y4", hoverinfo="skip"))
+            fig.add_trace(go.Scatter(x=mm["display_index"], y=mm["signal"], mode="lines", name="", showlegend=False, line=dict(color="#f97316", width=1.6), yaxis="y4", hoverinfo="skip"))
+
+    fig.update_layout(
+        title_text="",
+        template="plotly_white",
+        autosize=True,
+        height=total_height,
+        margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor="#fff",
+        plot_bgcolor="#f8fafc",
+        dragmode=False,
+        hovermode=False,
+        showlegend=False,
+        font=dict(size=9, color="#0f172a"),
+        xaxis=dict(
+            title_text="",
+            rangeslider=dict(visible=False),
+            fixedrange=True,
+            showticklabels=False,
+            ticks="",
+            showgrid=False,
+            zeroline=False,
+        ),
+        yaxis=dict(
+            title_text="",
+            fixedrange=True,
+            side="right",
+            tickformat=".2f",
+            nticks=5,
+            automargin=True,
+            showgrid=True,
+            gridcolor="#e2e8f0",
+            zeroline=False,
+            domain=domains["price"],
+        ),
+        yaxis2=dict(
+            title_text="",
+            fixedrange=True,
+            domain=domains.get("volume", [0, 0]),
+            visible=show_volume,
+            showticklabels=show_volume,
+            tickfont=dict(size=8),
+            nticks=2,
+            ticks="",
+            showgrid=False,
+            zeroline=False,
+        ),
+    )
+
     if show_rsi:
-        fig.update_layout(yaxis=dict(title_text="", domain=[0.42, 1.0], side="right", fixedrange=True, automargin=True, showgrid=True, gridcolor="#e2e8f0", tickformat=".2f", nticks=5), yaxis2=dict(title_text="", domain=[0.22, 0.34], visible=show_volume, showticklabels=False, ticks="", fixedrange=True, showgrid=False), yaxis3=dict(title_text="", domain=[0.0, 0.16], range=[0, 100], fixedrange=True, side="right", nticks=3, showgrid=True, gridcolor="#e2e8f0", zeroline=False, automargin=True))
+        fig.update_layout(yaxis3=dict(
+            title_text="",
+            domain=domains.get("rsi", [0, 0]),
+            range=[0, 100],
+            fixedrange=True,
+            side="right",
+            nticks=3,
+            showticklabels=True,
+            showgrid=True,
+            gridcolor="#e2e8f0",
+            zeroline=False,
+            automargin=True,
+            tickfont=dict(size=8),
+        ))
         fig.add_hline(y=70, line_dash="dot", line_color="#dc2626", opacity=.55, yref="y3")
         fig.add_hline(y=30, line_dash="dot", line_color="#059669", opacity=.55, yref="y3")
+
+    if show_macd:
+        fig.update_layout(yaxis4=dict(
+            title_text="",
+            domain=domains.get("macd", [0, 0]),
+            fixedrange=True,
+            side="right",
+            nticks=3,
+            showticklabels=True,
+            showgrid=True,
+            gridcolor="#e2e8f0",
+            zeroline=True,
+            zerolinecolor="#94a3b8",
+            automargin=True,
+            tickfont=dict(size=8),
+        ))
+
     for trace in fig.data:
         trace.showlegend = False
         trace.name = ""
@@ -241,7 +401,7 @@ with st.expander("Watchlist management", expanded=True):
             st.rerun()
 
 with st.expander("Chart settings and indicators", expanded=True):
-    st.markdown('<div class="section-help">SMA and Bollinger calculations use full historical data. Visible recent candles controls the number of recent candles displayed.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-help">SMA, Bollinger, RSI, and MACD calculations use full historical data. Volume, RSI, and MACD each get their own lower panel when enabled.</div>', unsafe_allow_html=True)
     interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
     ratio_name = st.selectbox("Chart ratio", list(CHART_RATIOS.keys()), index=0)
     max_points = st.select_slider("Visible recent candles", options=[20, 30, 45, 60, 75, 90, 120, 180], value=60)
@@ -253,6 +413,7 @@ with st.expander("Chart settings and indicators", expanded=True):
     show_bbands = st.toggle("Bollinger Bands", value=False)
     show_volume = st.toggle("Volume", value=True)
     show_rsi = st.toggle("RSI 14", value=False)
+    show_macd = st.toggle("MACD", value=False)
     if st.button("Refresh market data"):
         fetch_stock_history.clear()
         st.rerun()
@@ -284,7 +445,7 @@ else:
   <div class="price-pill">{price} · {pct}</div>
 </div>
 """, unsafe_allow_html=True)
-            st.markdown(f'<div class="indicator-row">{overlay_label(settings, show_volume, show_rsi)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="indicator-row">{overlay_label(settings, show_volume, show_rsi, show_macd)}</div>', unsafe_allow_html=True)
             with st.expander(f"Manage {symbol}", expanded=False):
                 if st.button("↑ Move up", key=f"up-{active}-{symbol}", disabled=i == 0):
                     move_symbol(active, symbol, -1)
@@ -298,7 +459,9 @@ else:
                     st.rerun()
             if len(full_df) < 200 and show_sma200:
                 st.caption(f"{symbol}: SMA 200 needs at least 200 data points. Available: {len(full_df)}.")
-            fig = make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, chart_ratio)
+            if len(full_df) < 35 and show_macd:
+                st.caption(f"{symbol}: MACD needs at least 35 data points. Available: {len(full_df)}.")
+            fig = make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, chart_ratio)
             st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
 
 st.caption("Data is provided through yfinance/Yahoo Finance. This dashboard is for educational and informational use only, not financial advice.")
