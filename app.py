@@ -75,14 +75,6 @@ st.markdown(
             line-height: 1.7;
             margin: 0;
         }
-        .panel-card {
-            border: 1px solid #dbe3ef;
-            border-radius: 1.25rem;
-            background: #ffffff;
-            box-shadow: 0 14px 42px rgba(15, 23, 42, 0.07);
-            padding: 1.15rem;
-            margin-bottom: 1rem;
-        }
         .panel-title {
             color: #0f172a;
             font-weight: 800;
@@ -135,13 +127,36 @@ def normalize_symbol(symbol: str) -> str:
     return symbol.strip().replace(" ", "").upper()
 
 
+def move_symbol(active_watchlist: str, symbol: str, direction: int) -> None:
+    """Move a symbol up (-1) or down (+1) within the active watchlist."""
+    symbols = st.session_state.watchlists.get(active_watchlist, [])
+    if symbol not in symbols:
+        return
+
+    current_index = symbols.index(symbol)
+    new_index = current_index + direction
+    if new_index < 0 or new_index >= len(symbols):
+        return
+
+    symbols[current_index], symbols[new_index] = symbols[new_index], symbols[current_index]
+    st.session_state.watchlists[active_watchlist] = symbols
+    save_watchlists(st.session_state.watchlists)
+
+
 # ------------------------------------------------------------
 # Data helpers
 # ------------------------------------------------------------
 @st.cache_data(ttl=300, show_spinner=False)
-def fetch_stock_history(symbol: str, period: str, interval: str) -> pd.DataFrame:
+def fetch_stock_history(symbol: str, interval: str) -> pd.DataFrame:
+    """
+    Fetch the full available history for the symbol.
+
+    SMA lines are calculated from this full history first, then filtered to the
+    visible chart range. This lets long indicators like SMA 100 and SMA 200
+    appear even when the displayed chart period is only 1mo or 3mo.
+    """
     ticker = yf.Ticker(symbol)
-    df = ticker.history(period=period, interval=interval)
+    df = ticker.history(period="max", interval=interval)
 
     if df.empty:
         return pd.DataFrame()
@@ -150,11 +165,34 @@ def fetch_stock_history(symbol: str, period: str, interval: str) -> pd.DataFrame
     df.columns = [str(col).lower().replace(" ", "_") for col in df.columns]
 
     date_col = "date" if "date" in df.columns else "datetime"
-    df[date_col] = pd.to_datetime(df[date_col])
+    df[date_col] = pd.to_datetime(df[date_col]).dt.tz_localize(None)
     df = df.rename(columns={date_col: "date"})
 
     required = ["date", "open", "high", "low", "close", "volume"]
-    return df[required].dropna()
+    return df[required].dropna().sort_values("date").reset_index(drop=True)
+
+
+def filter_display_period(df: pd.DataFrame, period: str) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    latest_date = df["date"].max()
+    offsets = {
+        "1mo": pd.DateOffset(months=1),
+        "3mo": pd.DateOffset(months=3),
+        "6mo": pd.DateOffset(months=6),
+        "1y": pd.DateOffset(years=1),
+        "2y": pd.DateOffset(years=2),
+        "5y": pd.DateOffset(years=5),
+        "max": None,
+    }
+
+    if period == "max" or offsets.get(period) is None:
+        return df.copy()
+
+    start_date = latest_date - offsets[period]
+    filtered = df[df["date"] >= start_date].copy()
+    return filtered if not filtered.empty else df.tail(1).copy()
 
 
 def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
@@ -165,32 +203,53 @@ def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
-def add_sma_trace(fig: go.Figure, df: pd.DataFrame, period: int, color: str) -> None:
-    if len(df) >= period:
-        fig.add_trace(
-            go.Scatter(
-                x=df["date"],
-                y=df["close"].rolling(period).mean(),
-                mode="lines",
-                name=f"SMA {period}",
-                line=dict(color=color, width=2.2),
-            )
-        )
-
-
-def add_bollinger_bands(fig: go.Figure, df: pd.DataFrame, period: int = 20, std_dev: float = 2.0) -> None:
-    if len(df) < period:
+def add_sma_trace(fig: go.Figure, full_df: pd.DataFrame, display_start: pd.Timestamp, period: int, color: str) -> None:
+    if len(full_df) < period:
         return
 
-    middle = df["close"].rolling(period).mean()
-    std = df["close"].rolling(period).std()
-    upper = middle + std_dev * std
-    lower = middle - std_dev * std
+    sma = full_df["close"].rolling(period).mean()
+    indicator_df = pd.DataFrame({"date": full_df["date"], "sma": sma})
+    indicator_df = indicator_df[indicator_df["date"] >= display_start].dropna()
+
+    if indicator_df.empty:
+        return
 
     fig.add_trace(
         go.Scatter(
-            x=df["date"],
-            y=upper,
+            x=indicator_df["date"],
+            y=indicator_df["sma"],
+            mode="lines",
+            name=f"SMA {period}",
+            line=dict(color=color, width=2.2),
+        )
+    )
+
+
+def add_bollinger_bands(fig: go.Figure, full_df: pd.DataFrame, display_start: pd.Timestamp, period: int = 20, std_dev: float = 2.0) -> None:
+    if len(full_df) < period:
+        return
+
+    middle = full_df["close"].rolling(period).mean()
+    std = full_df["close"].rolling(period).std()
+    upper = middle + std_dev * std
+    lower = middle - std_dev * std
+
+    band_df = pd.DataFrame(
+        {
+            "date": full_df["date"],
+            "upper": upper,
+            "lower": lower,
+        }
+    )
+    band_df = band_df[band_df["date"] >= display_start].dropna()
+
+    if band_df.empty:
+        return
+
+    fig.add_trace(
+        go.Scatter(
+            x=band_df["date"],
+            y=band_df["upper"],
             mode="lines",
             name="BB Upper",
             line=dict(color="#9333ea", width=1.6, dash="dot"),
@@ -198,8 +257,8 @@ def add_bollinger_bands(fig: go.Figure, df: pd.DataFrame, period: int = 20, std_
     )
     fig.add_trace(
         go.Scatter(
-            x=df["date"],
-            y=lower,
+            x=band_df["date"],
+            y=band_df["lower"],
             mode="lines",
             name="BB Lower",
             line=dict(color="#9333ea", width=1.6, dash="dot"),
@@ -211,20 +270,22 @@ def add_bollinger_bands(fig: go.Figure, df: pd.DataFrame, period: int = 20, std_
 
 def create_candlestick_chart(
     symbol: str,
-    df: pd.DataFrame,
+    full_df: pd.DataFrame,
+    display_df: pd.DataFrame,
     indicator_settings: dict[str, bool],
     show_volume: bool,
     show_rsi: bool,
 ) -> go.Figure:
     fig = go.Figure()
+    display_start = display_df["date"].min()
 
     fig.add_trace(
         go.Candlestick(
-            x=df["date"],
-            open=df["open"],
-            high=df["high"],
-            low=df["low"],
-            close=df["close"],
+            x=display_df["date"],
+            open=display_df["open"],
+            high=display_df["high"],
+            low=display_df["low"],
+            close=display_df["close"],
             name=symbol,
             increasing_line_color="#059669",
             decreasing_line_color="#dc2626",
@@ -233,23 +294,24 @@ def create_candlestick_chart(
         )
     )
 
+    # Indicators are calculated from full history, then shown only over the visible range.
     if indicator_settings["SMA20"]:
-        add_sma_trace(fig, df, 20, "#2563eb")
+        add_sma_trace(fig, full_df, display_start, 20, "#2563eb")
     if indicator_settings["SMA50"]:
-        add_sma_trace(fig, df, 50, "#f97316")
+        add_sma_trace(fig, full_df, display_start, 50, "#f97316")
     if indicator_settings["SMA100"]:
-        add_sma_trace(fig, df, 100, "#0891b2")
+        add_sma_trace(fig, full_df, display_start, 100, "#0891b2")
     if indicator_settings["SMA200"]:
-        add_sma_trace(fig, df, 200, "#475569")
+        add_sma_trace(fig, full_df, display_start, 200, "#475569")
     if indicator_settings["Bollinger Bands"]:
-        add_bollinger_bands(fig, df, period=20, std_dev=2.0)
+        add_bollinger_bands(fig, full_df, display_start, period=20, std_dev=2.0)
 
     if show_volume:
-        colors = ["#10b981" if row.close >= row.open else "#ef4444" for row in df.itertuples()]
+        colors = ["#10b981" if row.close >= row.open else "#ef4444" for row in display_df.itertuples()]
         fig.add_trace(
             go.Bar(
-                x=df["date"],
-                y=df["volume"],
+                x=display_df["date"],
+                y=display_df["volume"],
                 name="Volume",
                 marker_color=colors,
                 opacity=0.24,
@@ -257,20 +319,28 @@ def create_candlestick_chart(
             )
         )
 
-    if show_rsi and len(df) >= 14:
-        fig.add_trace(
-            go.Scatter(
-                x=df["date"],
-                y=calculate_rsi(df["close"]),
-                mode="lines",
-                name="RSI 14",
-                line=dict(color="#7c3aed", width=2.3),
-                yaxis="y3",
-            )
+    if show_rsi and len(full_df) >= 14:
+        rsi_df = pd.DataFrame(
+            {
+                "date": full_df["date"],
+                "rsi": calculate_rsi(full_df["close"]),
+            }
         )
+        rsi_df = rsi_df[rsi_df["date"] >= display_start].dropna()
+        if not rsi_df.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=rsi_df["date"],
+                    y=rsi_df["rsi"],
+                    mode="lines",
+                    name="RSI 14",
+                    line=dict(color="#7c3aed", width=2.3),
+                    yaxis="y3",
+                )
+            )
 
-    latest = df.iloc[-1]
-    previous = df.iloc[-2] if len(df) > 1 else latest
+    latest = display_df.iloc[-1]
+    previous = display_df.iloc[-2] if len(display_df) > 1 else latest
     change_pct = ((latest["close"] - previous["close"]) / previous["close"]) * 100 if previous["close"] else 0
 
     fig.update_layout(
@@ -359,7 +429,7 @@ st.markdown(
         <div class="eyebrow">Market intelligence dashboard</div>
         <h1 class="hero-title">Professional Stock Watchlist Monitor</h1>
         <p class="hero-subtitle">
-            Build watchlists, add tickers, and review fixed-position candlestick charts with professional technical overlays including SMA 20, SMA 50, SMA 100, SMA 200, and Bollinger Bands.
+            Build watchlists, add tickers, reorder your stocks, and review fixed-position candlestick charts with long-horizon indicators calculated from full historical data.
         </p>
     </div>
     """,
@@ -378,7 +448,7 @@ control_left, control_mid, control_right = st.columns([1.05, 1.05, 1.2])
 
 with control_left:
     st.markdown('<div class="panel-title">Watchlist selection</div>', unsafe_allow_html=True)
-    st.markdown('<div class="panel-subtitle">Choose, create, rename, or delete your lists.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel-subtitle">Choose or create your lists.</div>', unsafe_allow_html=True)
 
     selected = st.selectbox(
         "Active watchlist",
@@ -430,11 +500,11 @@ with control_mid:
 
 with control_right:
     st.markdown('<div class="panel-title">Market data settings</div>', unsafe_allow_html=True)
-    st.markdown('<div class="panel-subtitle">Set timeframe and chart overlays.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel-subtitle">Indicators use full history; period only controls the visible chart range.</div>', unsafe_allow_html=True)
 
     settings_col1, settings_col2 = st.columns(2)
     with settings_col1:
-        period = st.selectbox("Period", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=1)
+        period = st.selectbox("Visible period", ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"], index=1)
     with settings_col2:
         interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
 
@@ -502,12 +572,23 @@ st.divider()
 if not symbols:
     st.info("This watchlist is empty. Add a ticker above to show its candlestick chart.")
 else:
-    for symbol in symbols:
-        chart_col, action_col = st.columns([0.88, 0.12])
+    for index, symbol in enumerate(symbols):
+        chart_col, action_col = st.columns([0.86, 0.14])
 
         with action_col:
             st.write("")
             st.write("")
+            move_up_disabled = index == 0
+            move_down_disabled = index == len(symbols) - 1
+
+            if st.button("↑ Up", key=f"up-{active}-{symbol}", use_container_width=True, disabled=move_up_disabled):
+                move_symbol(active, symbol, -1)
+                st.rerun()
+
+            if st.button("↓ Down", key=f"down-{active}-{symbol}", use_container_width=True, disabled=move_down_disabled):
+                move_symbol(active, symbol, 1)
+                st.rerun()
+
             if st.button("Remove", key=f"remove-{active}-{symbol}", use_container_width=True):
                 st.session_state.watchlists[active] = [item for item in symbols if item != symbol]
                 save_watchlists(st.session_state.watchlists)
@@ -516,15 +597,21 @@ else:
         with chart_col:
             with st.container(border=True):
                 with st.spinner(f"Loading {symbol} from yfinance..."):
-                    df = fetch_stock_history(symbol, period, interval)
+                    full_df = fetch_stock_history(symbol, interval)
 
-                if df.empty:
+                if full_df.empty:
                     st.error(f"No data found for {symbol}. Check the ticker symbol or interval.")
                     continue
 
+                display_df = filter_display_period(full_df, period)
+
+                if len(full_df) < 200 and show_sma200:
+                    st.caption(f"{symbol}: SMA 200 needs at least 200 data points. Available: {len(full_df)}.")
+
                 fig = create_candlestick_chart(
                     symbol=symbol,
-                    df=df,
+                    full_df=full_df,
+                    display_df=display_df,
                     indicator_settings=indicator_settings,
                     show_volume=show_volume,
                     show_rsi=show_rsi,
