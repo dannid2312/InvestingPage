@@ -28,6 +28,7 @@ PLOT_CONFIG = {
     "scrollZoom": False,
     "doubleClick": False,
     "showTips": False,
+    "staticPlot": True,
     "responsive": True,
 }
 
@@ -156,6 +157,62 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+
+# ------------------------------------------------------------
+# Extra responsive chart styling
+# ------------------------------------------------------------
+st.markdown(
+    """
+    <style>
+        html, body, [data-testid="stAppViewContainer"] {
+            overflow-x: hidden !important;
+        }
+        div[data-testid="stPlotlyChart"],
+        div[data-testid="stPlotlyChart"] > div,
+        .js-plotly-plot,
+        .plot-container,
+        .svg-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            overflow: hidden !important;
+        }
+        div.stButton > button {
+            width: 100%;
+            border-radius: 0.85rem;
+            min-height: 2.7rem;
+            font-weight: 750;
+        }
+        @media (max-width: 768px) {
+            .block-container {
+                padding-left: 0.7rem !important;
+                padding-right: 0.7rem !important;
+                max-width: 100vw !important;
+            }
+            .hero-card {
+                padding: 1.05rem !important;
+                border-radius: 1rem !important;
+            }
+            .hero-title {
+                font-size: 1.85rem !important;
+            }
+            .hero-subtitle {
+                font-size: 0.95rem !important;
+                line-height: 1.5 !important;
+            }
+            div.stButton > button {
+                min-height: 2.9rem;
+                font-size: 0.95rem;
+            }
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # ------------------------------------------------------------
 # Persistence helpers
 # ------------------------------------------------------------
@@ -230,6 +287,15 @@ def filter_display_period(df: pd.DataFrame, period: str) -> pd.DataFrame:
     return filtered if not filtered.empty else df.tail(1).copy()
 
 
+
+
+def reduce_points_for_mobile(df: pd.DataFrame, max_points: int) -> pd.DataFrame:
+    """Keep phone charts readable by limiting visible candles after indicator calculation."""
+    if max_points <= 0 or len(df) <= max_points:
+        return df
+    return df.tail(max_points).copy()
+
+
 def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     delta = close.diff()
     gain = delta.clip(lower=0).rolling(period).mean()
@@ -301,6 +367,7 @@ def create_candlestick_chart(
     indicator_settings: dict[str, bool],
     show_volume: bool,
     show_rsi: bool,
+    mobile_mode: bool = False,
 ) -> go.Figure:
     fig = go.Figure()
     display_start = display_df["date"].min()
@@ -428,7 +495,69 @@ def create_candlestick_chart(
         fig.add_hline(y=70, line_dash="dot", line_color="#dc2626", opacity=0.55, yref="y3")
         fig.add_hline(y=30, line_dash="dot", line_color="#059669", opacity=0.55, yref="y3")
 
+
+
+    if mobile_mode:
+        # Phone-first layout: no in-chart title/legend, fewer ticks, right-side prices,
+        # minimal margins, and shorter height to avoid horizontal overflow.
+        fig.update_layout(
+            title=None,
+            showlegend=False,
+            hovermode=False,
+            height=455 if show_rsi else 390,
+            margin=dict(l=2, r=2, t=4, b=14),
+            font=dict(size=9, color="#0f172a", family="Inter, Arial, sans-serif"),
+        )
+        fig.update_xaxes(
+            nticks=4,
+            fixedrange=True,
+            automargin=True,
+            tickfont=dict(size=9),
+        )
+        fig.update_yaxes(
+            title=None,
+            fixedrange=True,
+            automargin=True,
+            tickfont=dict(size=9),
+        )
+        fig.update_layout(
+            yaxis=dict(
+                title=None,
+                fixedrange=True,
+                side="right",
+                nticks=5,
+                tickformat=".2f",
+                automargin=True,
+                showgrid=True,
+                gridcolor="#e2e8f0",
+                domain=[0.22 if not show_rsi else 0.42, 1.0],
+            ),
+            yaxis2=dict(
+                title=None,
+                fixedrange=True,
+                domain=[0.0, 0.15],
+                visible=show_volume,
+                showticklabels=False,
+                showgrid=False,
+            ),
+        )
+        if show_rsi:
+            fig.update_layout(
+                yaxis=dict(domain=[0.42, 1.0], side="right", title=None, fixedrange=True, automargin=True),
+                yaxis2=dict(domain=[0.22, 0.34], visible=show_volume, showticklabels=False, fixedrange=True),
+                yaxis3=dict(domain=[0.0, 0.16], side="right", title=None, fixedrange=True, nticks=3, automargin=True),
+            )
+
     return fig
+
+
+
+
+def stock_price_summary(display_df: pd.DataFrame) -> tuple[str, str]:
+    latest = display_df.iloc[-1]
+    previous = display_df.iloc[-2] if len(display_df) > 1 else latest
+    change_pct = ((latest["close"] - previous["close"]) / previous["close"]) * 100 if previous["close"] else 0
+    return f"${latest['close']:.2f}", f"{change_pct:+.2f}%"
 
 
 # ------------------------------------------------------------
@@ -533,8 +662,15 @@ with st.expander("Watchlist management", expanded=True):
 
 with st.expander("Chart settings and indicators", expanded=True):
     st.markdown('<div class="section-help">Indicators use full historical data; visible period only controls what part of the chart is displayed.</div>', unsafe_allow_html=True)
+    mobile_mode = st.toggle("Mobile optimised chart", value=True)
     period = st.selectbox("Visible period", ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"], index=1)
     interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
+    max_mobile_points = st.select_slider(
+        "Max visible candles in mobile mode",
+        options=[30, 45, 60, 75, 90, 120],
+        value=60,
+        disabled=not mobile_mode,
+    )
 
     st.markdown('<div class="section-label">Indicators</div>', unsafe_allow_html=True)
     show_sma20 = st.toggle("SMA 20", value=True)
