@@ -522,6 +522,15 @@ with st.sidebar:
         fetch_stock_history.clear()
         st.rerun()
 
+
+settings = {
+    "SMA20": show_sma20,
+    "SMA50": show_sma50,
+    "SMA100": show_sma100,
+    "SMA200": show_sma200,
+    "Bollinger Bands": show_bbands,
+}
+
 st.divider()
 active = st.session_state.active_watchlist
 symbols = st.session_state.watchlists.get(active, [])
