@@ -381,12 +381,25 @@ def create_candlestick_chart(
     indicator_settings: dict[str, bool],
     show_volume: bool,
     show_rsi: bool,
-    mobile_mode: bool = False,
-    chart_ratio: float = 9/16,
+    chart_ratio: float = 9 / 16,
 ) -> go.Figure:
-    fig = go.Figure()
+    """Create a compact, mobile-friendly chart with no legend/title/x-axis labels.
+
+    Streamlit controls the responsive width. The chart height is derived from the
+    selected ratio so the chart scales more naturally across phone/tablet/desktop.
+    """
     display_start = display_df["date"].min()
     display_df = add_display_index(display_df)
+
+    # Ratio-based height. Streamlit does not expose the actual client width to Python,
+    # so this uses practical width estimates plus bounds to keep the chart usable.
+    base_width = 620
+    chart_height = int(base_width * chart_ratio)
+    chart_height = max(300, min(620, chart_height))
+    if show_rsi:
+        chart_height += 85
+
+    fig = go.Figure()
 
     fig.add_trace(
         go.Candlestick(
@@ -395,12 +408,13 @@ def create_candlestick_chart(
             high=display_df["high"],
             low=display_df["low"],
             close=display_df["close"],
-            name=symbol,
+            name="",
             showlegend=False,
             increasing_line_color="#059669",
             decreasing_line_color="#dc2626",
             increasing_fillcolor="#10b981",
             decreasing_fillcolor="#ef4444",
+            hoverinfo="skip",
         )
     )
 
@@ -421,11 +435,12 @@ def create_candlestick_chart(
             go.Bar(
                 x=display_df["display_index"],
                 y=display_df["volume"],
-                name="Volume",
+                name="",
                 showlegend=False,
                 marker_color=colors,
-                opacity=0.24,
+                opacity=0.22,
                 yaxis="y2",
+                hoverinfo="skip",
             )
         )
 
@@ -439,139 +454,109 @@ def create_candlestick_chart(
                     x=rsi_df["display_index"],
                     y=rsi_df["rsi"],
                     mode="lines",
-                    name="RSI 14",
+                    name="",
                     showlegend=False,
-                    line=dict(color="#7c3aed", width=2.3),
+                    line=dict(color="#7c3aed", width=2.0),
                     yaxis="y3",
+                    hoverinfo="skip",
                 )
             )
 
-    chart_height = int(max(320, min(560, 360 * chart_ratio)))
-    if show_rsi:
-        chart_height += 78
+    price_domain = [0.22, 1.0] if not show_rsi else [0.42, 1.0]
 
     fig.update_layout(
-        title=None,
+        title_text="",
         template="plotly_white",
+        autosize=True,
         height=chart_height,
-        margin=dict(l=12, r=12, t=50, b=24),
+        margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor="#ffffff",
         plot_bgcolor="#f8fafc",
-        font=dict(color="#0f172a", family="Inter, Arial, sans-serif", size=11),
+        font=dict(color="#0f172a", family="Inter, Arial, sans-serif", size=9),
         dragmode=False,
-        hovermode="x unified",
+        hovermode=False,
+        showlegend=False,
         xaxis=dict(
-            title=None,
+            title_text="",
             rangeslider=dict(visible=False),
             fixedrange=True,
             showticklabels=False,
             ticks="",
             showgrid=False,
-            gridcolor="#e2e8f0",
-            linecolor="#cbd5e1",
             zeroline=False,
         ),
         yaxis=dict(
-            title="Price",
+            title_text="",
             fixedrange=True,
-            domain=[0.28 if show_rsi else 0.18, 1.0],
+            side="right",
+            tickformat=".2f",
+            nticks=5,
+            tickfont=dict(size=9),
+            automargin=True,
             showgrid=True,
             gridcolor="#e2e8f0",
-            linecolor="#cbd5e1",
             zeroline=False,
+            domain=price_domain,
         ),
         yaxis2=dict(
-            title="Volume",
+            title_text="",
             fixedrange=True,
-            domain=[0.0, 0.16],
-            showgrid=False,
+            domain=[0.0, 0.15],
             visible=show_volume,
-        ),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1,
-            font=dict(color="#334155", size=10),
+            showticklabels=False,
+            ticks="",
+            showgrid=False,
+            zeroline=False,
         ),
     )
 
     if show_rsi:
         fig.update_layout(
-            yaxis=dict(domain=[0.42, 1.0], fixedrange=True, showgrid=True, gridcolor="#e2e8f0"),
-            yaxis2=dict(domain=[0.22, 0.34], fixedrange=True, visible=show_volume, showgrid=False),
+            yaxis=dict(
+                title_text="",
+                domain=[0.42, 1.0],
+                side="right",
+                fixedrange=True,
+                automargin=True,
+                showgrid=True,
+                gridcolor="#e2e8f0",
+                tickformat=".2f",
+                nticks=5,
+                tickfont=dict(size=9),
+            ),
+            yaxis2=dict(
+                title_text="",
+                domain=[0.22, 0.34],
+                visible=show_volume,
+                showticklabels=False,
+                ticks="",
+                fixedrange=True,
+                showgrid=False,
+            ),
             yaxis3=dict(
-                title="RSI",
+                title_text="",
                 domain=[0.0, 0.16],
                 range=[0, 100],
                 fixedrange=True,
+                side="right",
+                nticks=3,
                 showgrid=True,
                 gridcolor="#e2e8f0",
                 zeroline=False,
+                automargin=True,
+                tickfont=dict(size=9),
             ),
         )
         fig.add_hline(y=70, line_dash="dot", line_color="#dc2626", opacity=0.55, yref="y3")
         fig.add_hline(y=30, line_dash="dot", line_color="#059669", opacity=0.55, yref="y3")
 
-
-
-    if mobile_mode:
-        # Phone-first layout: no in-chart title/legend, fewer ticks, right-side prices,
-        # minimal margins, and shorter height to avoid horizontal overflow.
-        fig.update_layout(
-            title=None,
-            showlegend=False,
-            hovermode=False,
-            height=455 if show_rsi else 390,
-            margin=dict(l=2, r=2, t=4, b=14),
-            font=dict(size=9, color="#0f172a", family="Inter, Arial, sans-serif"),
-        )
-        fig.update_xaxes(
-            nticks=4,
-            fixedrange=True,
-            showticklabels=False,
-            ticks="",
-            showgrid=False,
-            automargin=True,
-            tickfont=dict(size=9),
-        )
-        fig.update_yaxes(
-            title=None,
-            fixedrange=True,
-            automargin=True,
-            tickfont=dict(size=9),
-        )
-        fig.update_layout(
-            yaxis=dict(
-                fixedrange=True,
-                side="right",
-                nticks=5,
-                tickformat=".2f",
-                automargin=True,
-                showgrid=True,
-                gridcolor="#e2e8f0",
-                domain=[0.22 if not show_rsi else 0.42, 1.0],
-            ),
-            yaxis2=dict(
-                title=None,
-                fixedrange=True,
-                domain=[0.0, 0.15],
-                visible=show_volume,
-                showticklabels=False,
-                showgrid=False,
-            ),
-        )
-        if show_rsi:
-            fig.update_layout(
-                yaxis=dict(domain=[0.42, 1.0], side="right", title=None, fixedrange=True, automargin=True),
-                yaxis2=dict(domain=[0.22, 0.34], visible=show_volume, showticklabels=False, fixedrange=True),
-                yaxis3=dict(domain=[0.0, 0.16], side="right", title=None, fixedrange=True, nticks=3, automargin=True),
-            )
+    # Final hard override to prevent Plotly from displaying any legend/title.
+    fig.update_layout(showlegend=False, title_text="")
+    for trace in fig.data:
+        trace.showlegend = False
+        trace.name = ""
 
     return fig
-
-
 
 
 def stock_price_summary(display_df: pd.DataFrame) -> tuple[str, str]:
@@ -687,11 +672,10 @@ with st.expander("Chart settings and indicators", expanded=True):
     period = st.selectbox("Visible period", ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"], index=1)
     interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
     chart_ratio_name = st.selectbox("Chart ratio", ["Compact 16:9", "Balanced 4:3", "Tall mobile 1:1"], index=0)
-    max_mobile_points = st.select_slider(
-        "Max visible index candles in mobile mode",
-        options=[30, 45, 60, 75, 90, 120],
+    max_visible_points = st.select_slider(
+        "Max visible candles",
+        options=[20, 30, 45, 60, 75, 90, 120, 180],
         value=60,
-        disabled=not mobile_mode,
     )
 
     st.markdown('<div class="section-label">Indicators</div>', unsafe_allow_html=True)
@@ -756,6 +740,7 @@ else:
                 continue
 
             display_df = filter_display_period(full_df, period)
+            display_df = reduce_points_for_mobile(display_df, max_visible_points)
 
             if len(full_df) < 200 and show_sma200:
                 st.caption(f"{symbol}: SMA 200 needs at least 200 data points. Available: {len(full_df)}.")
