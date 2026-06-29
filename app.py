@@ -144,7 +144,7 @@ def add_bbands(fig, full_df, display_df, start_date):
     fig.add_trace(go.Scatter(x=data["display_index"], y=data["lower"], mode="lines", name="", showlegend=False, line=dict(color="#9333ea", width=1.3, dash="dot"), fill="tonexty", fillcolor="rgba(147,51,234,.08)", hoverinfo="skip"))
 
 
-def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, chart_width, price_height):
+def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, price_height):
     start_date = display_df["date"].min()
     display_df = add_index(display_df)
 
@@ -244,8 +244,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
     fig.update_layout(
         title_text="",
         template="plotly_white",
-        autosize=False,
-        width=int(chart_width),
+        autosize=True,
         height=total_height,
         margin=dict(l=44, r=44, t=0, b=0),
         paper_bgcolor="#fff",
@@ -253,7 +252,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
         dragmode=False,
         hovermode=False,
         showlegend=False,
-        font=dict(size=9, color="#0f172a"),
+        font=dict(size=9, color="#0f172a", family="Inter, Arial, sans-serif"),
         xaxis=dict(
             title_text="",
             rangeslider=dict(visible=False),
@@ -284,7 +283,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             domain=domains.get("volume", [0, 0]),
             visible=show_volume,
             showticklabels=show_volume,
-            tickfont=dict(size=8),
+            tickfont=dict(size=9, family="Inter, Arial, sans-serif", color="#334155"),
             nticks=2,
             ticks="",
             showgrid=False,
@@ -299,7 +298,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             showticklabels=True,
             tickformat=".2f",
             nticks=5,
-            tickfont=dict(size=8),
+            tickfont=dict(size=9, family="Inter, Arial, sans-serif", color="#334155"),
             showgrid=False,
             zeroline=False,
         ),
@@ -312,7 +311,8 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             visible=show_volume,
             showticklabels=show_volume,
             nticks=2,
-            tickfont=dict(size=8),
+            ticks="",
+            tickfont=dict(size=9, family="Inter, Arial, sans-serif", color="#334155"),
             showgrid=False,
             zeroline=False,
         ),
@@ -337,7 +337,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
                 gridcolor="#e2e8f0",
                 zeroline=False,
                 automargin=True,
-                tickfont=dict(size=8),
+                tickfont=dict(size=9, family="Inter, Arial, sans-serif", color="#334155"),
             ),
             yaxis7=dict(
                 title_text="",
@@ -347,7 +347,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
                 fixedrange=True,
                 nticks=3,
                 showticklabels=True,
-                tickfont=dict(size=8),
+                tickfont=dict(size=9, family="Inter, Arial, sans-serif", color="#334155"),
                 showgrid=False,
                 zeroline=False,
             ),
@@ -376,7 +376,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
                 zeroline=True,
                 zerolinecolor="#94a3b8",
                 automargin=True,
-                tickfont=dict(size=8),
+                tickfont=dict(size=9, family="Inter, Arial, sans-serif", color="#334155"),
             ),
             yaxis8=dict(
                 title_text="",
@@ -386,7 +386,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
                 fixedrange=True,
                 nticks=3,
                 showticklabels=True,
-                tickfont=dict(size=8),
+                tickfont=dict(size=9, family="Inter, Arial, sans-serif", color="#334155"),
                 showgrid=False,
                 zeroline=False,
             ),
@@ -477,13 +477,10 @@ with st.expander("Watchlist management", expanded=True):
             st.rerun()
 
 with st.expander("Chart settings and indicators", expanded=True):
-    st.markdown('<div class="section-help">SMA, Bollinger, RSI, and MACD calculations use full historical data. Volume, RSI, and MACD each get their own lower panel when enabled. Set your own chart width and main candlestick height below.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-help">SMA, Bollinger, RSI, and MACD calculations use full historical data. Volume, RSI, and MACD each get their own lower panel when enabled. The chart uses flexible width and a fixed 250 px main candlestick height.</div>', unsafe_allow_html=True)
     interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
-    size_col1, size_col2 = st.columns(2)
-    with size_col1:
-        chart_width = st.number_input("Chart width px", min_value=280, max_value=1400, value=380, step=20)
-    with size_col2:
-        price_height = st.number_input("Main chart height px", min_value=220, max_value=900, value=320, step=20)
+    st.caption("Chart uses flexible width and a fixed 250 px main candlestick height.")
+    price_height = 250
     max_points = st.select_slider("Visible recent candles", options=[20, 30, 45, 60, 75, 90, 120, 180], value=60)
     st.markdown('<div class="section-label">Indicators</div>', unsafe_allow_html=True)
     show_sma20 = st.toggle("SMA 20", value=True)
@@ -541,7 +538,7 @@ else:
                 st.caption(f"{symbol}: SMA 200 needs at least 200 data points. Available: {len(full_df)}.")
             if len(full_df) < 35 and show_macd:
                 st.caption(f"{symbol}: MACD needs at least 35 data points. Available: {len(full_df)}.")
-            fig = make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, chart_width, price_height)
-            st.plotly_chart(fig, use_container_width=False, config=PLOT_CONFIG)
+            fig = make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, price_height)
+            st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
 
 st.caption("Data is provided through yfinance/Yahoo Finance. This dashboard is for educational and informational use only, not financial advice.")
