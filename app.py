@@ -290,10 +290,19 @@ def filter_display_period(df: pd.DataFrame, period: str) -> pd.DataFrame:
 
 
 def reduce_points_for_mobile(df: pd.DataFrame, max_points: int) -> pd.DataFrame:
-    """Keep phone charts readable by limiting visible candles after indicator calculation."""
+    """Keep phone charts readable by limiting visible index candles after indicator calculation."""
     if max_points <= 0 or len(df) <= max_points:
         return df
     return df.tail(max_points).copy()
+
+
+
+
+def add_display_index(df: pd.DataFrame) -> pd.DataFrame:
+    """Add a simple 1..N index for the chart x-axis instead of date labels."""
+    indexed = df.copy().reset_index(drop=True)
+    indexed["display_index"] = indexed.index + 1
+    return indexed
 
 
 def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
@@ -304,17 +313,18 @@ def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
-def add_sma_trace(fig: go.Figure, full_df: pd.DataFrame, display_start: pd.Timestamp, period: int, color: str) -> None:
+def add_sma_trace(fig: go.Figure, full_df: pd.DataFrame, display_df: pd.DataFrame, display_start: pd.Timestamp, period: int, color: str) -> None:
     if len(full_df) < period:
         return
     sma = full_df["close"].rolling(period).mean()
     indicator_df = pd.DataFrame({"date": full_df["date"], "sma": sma})
     indicator_df = indicator_df[indicator_df["date"] >= display_start].dropna()
+    indicator_df = indicator_df.merge(display_df[["date", "display_index"]], on="date", how="inner")
     if indicator_df.empty:
         return
     fig.add_trace(
         go.Scatter(
-            x=indicator_df["date"],
+            x=indicator_df["display_index"],
             y=indicator_df["sma"],
             mode="lines",
             name=f"SMA {period}",
@@ -323,7 +333,7 @@ def add_sma_trace(fig: go.Figure, full_df: pd.DataFrame, display_start: pd.Times
     )
 
 
-def add_bollinger_bands(fig: go.Figure, full_df: pd.DataFrame, display_start: pd.Timestamp, period: int = 20, std_dev: float = 2.0) -> None:
+def add_bollinger_bands(fig: go.Figure, full_df: pd.DataFrame, display_df: pd.DataFrame, display_start: pd.Timestamp, period: int = 20, std_dev: float = 2.0) -> None:
     if len(full_df) < period:
         return
     middle = full_df["close"].rolling(period).mean()
@@ -336,11 +346,12 @@ def add_bollinger_bands(fig: go.Figure, full_df: pd.DataFrame, display_start: pd
         }
     )
     band_df = band_df[band_df["date"] >= display_start].dropna()
+    band_df = band_df.merge(display_df[["date", "display_index"]], on="date", how="inner")
     if band_df.empty:
         return
     fig.add_trace(
         go.Scatter(
-            x=band_df["date"],
+            x=band_df["display_index"],
             y=band_df["upper"],
             mode="lines",
             name="BB Upper",
@@ -349,7 +360,7 @@ def add_bollinger_bands(fig: go.Figure, full_df: pd.DataFrame, display_start: pd
     )
     fig.add_trace(
         go.Scatter(
-            x=band_df["date"],
+            x=band_df["display_index"],
             y=band_df["lower"],
             mode="lines",
             name="BB Lower",
@@ -371,10 +382,11 @@ def create_candlestick_chart(
 ) -> go.Figure:
     fig = go.Figure()
     display_start = display_df["date"].min()
+    display_df = add_display_index(display_df)
 
     fig.add_trace(
         go.Candlestick(
-            x=display_df["date"],
+            x=display_df["display_index"],
             open=display_df["open"],
             high=display_df["high"],
             low=display_df["low"],
@@ -388,21 +400,21 @@ def create_candlestick_chart(
     )
 
     if indicator_settings["SMA20"]:
-        add_sma_trace(fig, full_df, display_start, 20, "#2563eb")
+        add_sma_trace(fig, full_df, display_df, display_start, 20, "#2563eb")
     if indicator_settings["SMA50"]:
-        add_sma_trace(fig, full_df, display_start, 50, "#f97316")
+        add_sma_trace(fig, full_df, display_df, display_start, 50, "#f97316")
     if indicator_settings["SMA100"]:
-        add_sma_trace(fig, full_df, display_start, 100, "#0891b2")
+        add_sma_trace(fig, full_df, display_df, display_start, 100, "#0891b2")
     if indicator_settings["SMA200"]:
-        add_sma_trace(fig, full_df, display_start, 200, "#475569")
+        add_sma_trace(fig, full_df, display_df, display_start, 200, "#475569")
     if indicator_settings["Bollinger Bands"]:
-        add_bollinger_bands(fig, full_df, display_start)
+        add_bollinger_bands(fig, full_df, display_df, display_start)
 
     if show_volume:
         colors = ["#10b981" if row.close >= row.open else "#ef4444" for row in display_df.itertuples()]
         fig.add_trace(
             go.Bar(
-                x=display_df["date"],
+                x=display_df["display_index"],
                 y=display_df["volume"],
                 name="Volume",
                 marker_color=colors,
@@ -414,10 +426,11 @@ def create_candlestick_chart(
     if show_rsi and len(full_df) >= 14:
         rsi_df = pd.DataFrame({"date": full_df["date"], "rsi": calculate_rsi(full_df["close"])})
         rsi_df = rsi_df[rsi_df["date"] >= display_start].dropna()
+        rsi_df = rsi_df.merge(display_df[["date", "display_index"]], on="date", how="inner")
         if not rsi_df.empty:
             fig.add_trace(
                 go.Scatter(
-                    x=rsi_df["date"],
+                    x=rsi_df["display_index"],
                     y=rsi_df["rsi"],
                     mode="lines",
                     name="RSI 14",
@@ -445,9 +458,12 @@ def create_candlestick_chart(
         dragmode=False,
         hovermode="x unified",
         xaxis=dict(
+            title=None,
             rangeslider=dict(visible=False),
             fixedrange=True,
-            showgrid=True,
+            showticklabels=False,
+            ticks="",
+            showgrid=False,
             gridcolor="#e2e8f0",
             linecolor="#cbd5e1",
             zeroline=False,
@@ -511,6 +527,9 @@ def create_candlestick_chart(
         fig.update_xaxes(
             nticks=4,
             fixedrange=True,
+            showticklabels=False,
+            ticks="",
+            showgrid=False,
             automargin=True,
             tickfont=dict(size=9),
         )
@@ -666,7 +685,7 @@ with st.expander("Chart settings and indicators", expanded=True):
     period = st.selectbox("Visible period", ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"], index=1)
     interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
     max_mobile_points = st.select_slider(
-        "Max visible candles in mobile mode",
+        "Max visible index candles in mobile mode",
         options=[30, 45, 60, 75, 90, 120],
         value=60,
         disabled=not mobile_mode,
