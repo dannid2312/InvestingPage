@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 
-st.set_page_config(page_title="Market Watchlist Dashboard", page_icon="📊", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Market Watchlist Dashboard", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 
 WATCHLIST_FILE = Path("watchlists.json")
 DEFAULT_WATCHLISTS = {
@@ -20,6 +20,8 @@ st.markdown("""
 <style>
 html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden !important; }
 .stApp { background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 48%, #eff6ff 100%); color: #0f172a; }
+section[data-testid="stSidebar"] { background:#ffffff; border-right:1px solid #dbe3ef; }
+section[data-testid="stSidebar"] * { color:#0f172a; }
 .block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 1120px; }
 .hero-card { padding: 1.55rem; border: 1px solid #dbe3ef; border-radius: 1.3rem; background: #fff; box-shadow: 0 18px 60px rgba(15,23,42,.08); }
 .eyebrow { color: #2563eb; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .76rem; margin-bottom: .65rem; }
@@ -426,13 +428,27 @@ names = list(st.session_state.watchlists.keys())
 if st.session_state.active_watchlist not in names and names:
     st.session_state.active_watchlist = names[0]
 
-with st.expander("Watchlist management", expanded=True):
-    st.markdown('<div class="section-label">Select active watchlist</div>', unsafe_allow_html=True)
-    st.session_state.active_watchlist = st.selectbox("Active watchlist", names, index=names.index(st.session_state.active_watchlist), label_visibility="collapsed")
+with st.sidebar:
+    st.header("Watchlist")
+    st.caption("Create, select, rename, and manage your ticker lists.")
+
+    st.markdown('<div class="section-label">Active watchlist</div>', unsafe_allow_html=True)
+    st.session_state.active_watchlist = st.selectbox(
+        "Active watchlist",
+        names,
+        index=names.index(st.session_state.active_watchlist),
+        label_visibility="collapsed",
+    )
+
     st.markdown('<div class="section-label">Add stock ticker</div>', unsafe_allow_html=True)
     with st.form("add_symbol_form", clear_on_submit=True):
-        symbol_input = st.text_input("Ticker symbol", placeholder="AAPL, TSLA, BHP.AX, CBA.AX, BTC-USD", label_visibility="collapsed")
+        symbol_input = st.text_input(
+            "Ticker symbol",
+            placeholder="AAPL, TSLA, BHP.AX, CBA.AX, BTC-USD",
+            label_visibility="collapsed",
+        )
         submitted = st.form_submit_button("Add stock")
+
     if submitted:
         active = st.session_state.active_watchlist
         symbol = normalize_symbol(symbol_input)
@@ -444,7 +460,8 @@ with st.expander("Watchlist management", expanded=True):
             st.session_state.watchlists[active].append(symbol)
             save_watchlists(st.session_state.watchlists)
             st.rerun()
-    with st.expander("Create, rename, or delete watchlists", expanded=False):
+
+    with st.expander("Create / rename / delete", expanded=False):
         new_name = st.text_input("New watchlist name", placeholder="e.g. Dividend Picks")
         if st.button("＋ Create watchlist"):
             name = new_name.strip()
@@ -457,6 +474,7 @@ with st.expander("Watchlist management", expanded=True):
                 st.session_state.active_watchlist = name
                 save_watchlists(st.session_state.watchlists)
                 st.rerun()
+
         rename_name = st.text_input("Rename selected watchlist", value=st.session_state.active_watchlist)
         if st.button("Rename selected watchlist"):
             old = st.session_state.active_watchlist
@@ -470,18 +488,26 @@ with st.expander("Watchlist management", expanded=True):
                 st.session_state.active_watchlist = new
                 save_watchlists(st.session_state.watchlists)
                 st.rerun()
+
         if st.button("Delete selected watchlist", disabled=len(st.session_state.watchlists) <= 1):
             st.session_state.watchlists.pop(st.session_state.active_watchlist, None)
             st.session_state.active_watchlist = next(iter(st.session_state.watchlists.keys()))
             save_watchlists(st.session_state.watchlists)
             st.rerun()
 
-with st.expander("Chart settings and indicators", expanded=True):
-    st.markdown('<div class="section-help">SMA, Bollinger, RSI, and MACD calculations use full historical data. Volume, RSI, and MACD each get their own lower panel when enabled. The chart uses flexible width and a fixed 250 px main candlestick height.</div>', unsafe_allow_html=True)
+    st.divider()
+    st.header("Chart settings")
+    st.caption("Visible candles control the displayed recent range; indicators still use full history.")
+
     interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
     st.caption("Chart uses flexible width and a fixed 250 px main candlestick height.")
     price_height = 250
-    max_points = st.select_slider("Visible recent candles", options=[20, 30, 45, 60, 75, 90, 120, 180], value=60)
+    max_points = st.select_slider(
+        "Visible recent candles",
+        options=[20, 30, 45, 60, 75, 90, 120, 180],
+        value=60,
+    )
+
     st.markdown('<div class="section-label">Indicators</div>', unsafe_allow_html=True)
     show_sma20 = st.toggle("SMA 20", value=True)
     show_sma50 = st.toggle("SMA 50", value=False)
@@ -491,12 +517,10 @@ with st.expander("Chart settings and indicators", expanded=True):
     show_volume = st.toggle("Volume", value=True)
     show_rsi = st.toggle("RSI 14", value=False)
     show_macd = st.toggle("MACD", value=False)
+
     if st.button("Refresh market data"):
         fetch_stock_history.clear()
         st.rerun()
-
-settings = {"SMA20": show_sma20, "SMA50": show_sma50, "SMA100": show_sma100, "SMA200": show_sma200, "Bollinger Bands": show_bbands}
-
 
 st.divider()
 active = st.session_state.active_watchlist
