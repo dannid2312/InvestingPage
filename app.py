@@ -328,6 +328,7 @@ def add_sma_trace(fig: go.Figure, full_df: pd.DataFrame, display_df: pd.DataFram
             y=indicator_df["sma"],
             mode="lines",
             name=f"SMA {period}",
+            showlegend=False,
             line=dict(color=color, width=2.2),
         )
     )
@@ -355,6 +356,7 @@ def add_bollinger_bands(fig: go.Figure, full_df: pd.DataFrame, display_df: pd.Da
             y=band_df["upper"],
             mode="lines",
             name="BB Upper",
+            showlegend=False,
             line=dict(color="#9333ea", width=1.6, dash="dot"),
         )
     )
@@ -364,6 +366,7 @@ def add_bollinger_bands(fig: go.Figure, full_df: pd.DataFrame, display_df: pd.Da
             y=band_df["lower"],
             mode="lines",
             name="BB Lower",
+            showlegend=False,
             line=dict(color="#9333ea", width=1.6, dash="dot"),
             fill="tonexty",
             fillcolor="rgba(147, 51, 234, 0.08)",
@@ -379,6 +382,7 @@ def create_candlestick_chart(
     show_volume: bool,
     show_rsi: bool,
     mobile_mode: bool = False,
+    chart_ratio: float = 9/16,
 ) -> go.Figure:
     fig = go.Figure()
     display_start = display_df["date"].min()
@@ -392,6 +396,7 @@ def create_candlestick_chart(
             low=display_df["low"],
             close=display_df["close"],
             name=symbol,
+            showlegend=False,
             increasing_line_color="#059669",
             decreasing_line_color="#dc2626",
             increasing_fillcolor="#10b981",
@@ -417,6 +422,7 @@ def create_candlestick_chart(
                 x=display_df["display_index"],
                 y=display_df["volume"],
                 name="Volume",
+                showlegend=False,
                 marker_color=colors,
                 opacity=0.24,
                 yaxis="y2",
@@ -434,23 +440,20 @@ def create_candlestick_chart(
                     y=rsi_df["rsi"],
                     mode="lines",
                     name="RSI 14",
+                    showlegend=False,
                     line=dict(color="#7c3aed", width=2.3),
                     yaxis="y3",
                 )
             )
 
-    latest = display_df.iloc[-1]
-    previous = display_df.iloc[-2] if len(display_df) > 1 else latest
-    change_pct = ((latest["close"] - previous["close"]) / previous["close"]) * 100 if previous["close"] else 0
+    chart_height = int(max(320, min(560, 360 * chart_ratio)))
+    if show_rsi:
+        chart_height += 78
 
     fig.update_layout(
-        title=dict(
-            text=f"{symbol} · ${latest['close']:.2f} · {change_pct:+.2f}%",
-            font=dict(color="#0f172a", size=18),
-            x=0.01,
-        ),
+        title=None,
         template="plotly_white",
-        height=500 if show_rsi else 430,
+        height=chart_height,
         margin=dict(l=12, r=12, t=50, b=24),
         paper_bgcolor="#ffffff",
         plot_bgcolor="#f8fafc",
@@ -541,7 +544,6 @@ def create_candlestick_chart(
         )
         fig.update_layout(
             yaxis=dict(
-                title=None,
                 fixedrange=True,
                 side="right",
                 nticks=5,
@@ -684,6 +686,7 @@ with st.expander("Chart settings and indicators", expanded=True):
     mobile_mode = st.toggle("Mobile optimised chart", value=True)
     period = st.selectbox("Visible period", ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"], index=1)
     interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
+    chart_ratio_name = st.selectbox("Chart ratio", ["Compact 16:9", "Balanced 4:3", "Tall mobile 1:1"], index=0)
     max_mobile_points = st.select_slider(
         "Max visible index candles in mobile mode",
         options=[30, 45, 60, 75, 90, 120],
@@ -703,6 +706,8 @@ with st.expander("Chart settings and indicators", expanded=True):
     if st.button("Refresh market data"):
         fetch_stock_history.clear()
         st.rerun()
+
+chart_ratio = {"Compact 16:9": 9/16, "Balanced 4:3": 3/4, "Tall mobile 1:1": 1.0}[chart_ratio_name]
 
 indicator_settings = {
     "SMA20": show_sma20,
@@ -762,6 +767,7 @@ else:
                 indicator_settings=indicator_settings,
                 show_volume=show_volume,
                 show_rsi=show_rsi,
+                chart_ratio=chart_ratio,
             )
             st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
 
