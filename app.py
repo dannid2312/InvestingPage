@@ -10,8 +10,8 @@ import yfinance as yf
 # App config
 # ------------------------------------------------------------
 st.set_page_config(
-    page_title="Stock Watchlist Dashboard",
-    page_icon="📈",
+    page_title="Market Watchlist Dashboard",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -22,6 +22,14 @@ DEFAULT_WATCHLISTS = {
     "Mega Cap Tech": ["AAPL", "GOOGL", "AMZN"],
 }
 
+PLOT_CONFIG = {
+    "displayModeBar": False,
+    "scrollZoom": False,
+    "doubleClick": False,
+    "showTips": False,
+    "responsive": True,
+}
+
 # ------------------------------------------------------------
 # Styling
 # ------------------------------------------------------------
@@ -29,25 +37,68 @@ st.markdown(
     """
     <style>
         .stApp {
-            background: radial-gradient(circle at top left, #164e63 0%, #020617 35%, #020617 100%);
+            background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 48%, #eff6ff 100%);
+            color: #0f172a;
         }
         .block-container {
             padding-top: 2rem;
             padding-bottom: 3rem;
+            max-width: 1420px;
+        }
+        section[data-testid="stSidebar"] {
+            background: #ffffff;
+            border-right: 1px solid #dbe3ef;
+        }
+        section[data-testid="stSidebar"] * {
+            color: #0f172a;
         }
         .hero-card {
-            padding: 1.5rem;
-            border: 1px solid rgba(148, 163, 184, 0.18);
+            padding: 2rem;
+            border: 1px solid #dbe3ef;
             border-radius: 1.5rem;
-            background: rgba(2, 6, 23, 0.78);
-            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+            background: #ffffff;
+            box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
         }
-        .small-muted {
-            color: #94a3b8;
-            font-size: 0.95rem;
+        .eyebrow {
+            color: #2563eb;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            margin-bottom: 0.75rem;
         }
-        h1, h2, h3 {
-            color: #f8fafc;
+        .hero-title {
+            color: #0f172a;
+            font-size: 2.8rem;
+            line-height: 1.05;
+            font-weight: 800;
+            margin: 0 0 0.9rem 0;
+        }
+        .hero-subtitle {
+            color: #475569;
+            max-width: 920px;
+            font-size: 1.05rem;
+            line-height: 1.7;
+            margin: 0;
+        }
+        .section-card {
+            border: 1px solid #dbe3ef;
+            border-radius: 1.25rem;
+            background: #ffffff;
+            box-shadow: 0 14px 42px rgba(15, 23, 42, 0.07);
+            padding: 1rem;
+        }
+        h1, h2, h3, h4, h5, h6, p, label, span, div {
+            color: #0f172a;
+        }
+        .stCaption, [data-testid="stCaptionContainer"] {
+            color: #64748b !important;
+        }
+        div[data-testid="stMetricValue"], div[data-testid="stMetricDelta"] {
+            color: #0f172a;
+        }
+        .stAlert {
+            border-radius: 1rem;
         }
     </style>
     """,
@@ -124,9 +175,9 @@ def create_candlestick_chart(
             low=df["low"],
             close=df["close"],
             name=symbol,
-            increasing_line_color="#22c55e",
-            decreasing_line_color="#ef4444",
-            increasing_fillcolor="#22c55e",
+            increasing_line_color="#059669",
+            decreasing_line_color="#dc2626",
+            increasing_fillcolor="#10b981",
             decreasing_fillcolor="#ef4444",
         )
     )
@@ -138,7 +189,7 @@ def create_candlestick_chart(
                 y=df["close"].rolling(20).mean(),
                 mode="lines",
                 name="SMA 20",
-                line=dict(color="#38bdf8", width=2),
+                line=dict(color="#2563eb", width=2.4),
             )
         )
 
@@ -149,12 +200,12 @@ def create_candlestick_chart(
                 y=df["close"].ewm(span=9, adjust=False).mean(),
                 mode="lines",
                 name="EMA 9",
-                line=dict(color="#f59e0b", width=2),
+                line=dict(color="#f97316", width=2.4),
             )
         )
 
     if show_volume:
-        colors = ["#22c55e" if row.close >= row.open else "#ef4444" for row in df.itertuples()]
+        colors = ["#10b981" if row.close >= row.open else "#ef4444" for row in df.itertuples()]
         fig.add_trace(
             go.Bar(
                 x=df["date"],
@@ -173,7 +224,7 @@ def create_candlestick_chart(
                 y=calculate_rsi(df["close"]),
                 mode="lines",
                 name="RSI 14",
-                line=dict(color="#a78bfa", width=2),
+                line=dict(color="#7c3aed", width=2.3),
                 yaxis="y3",
             )
         )
@@ -183,47 +234,69 @@ def create_candlestick_chart(
     change_pct = ((latest["close"] - previous["close"]) / previous["close"]) * 100 if previous["close"] else 0
 
     fig.update_layout(
-        title=f"{symbol} · ${latest['close']:.2f} · {change_pct:+.2f}%",
-        template="plotly_dark",
-        height=520 if show_rsi else 460,
-        margin=dict(l=20, r=20, t=50, b=20),
-        paper_bgcolor="rgba(2, 6, 23, 0)",
-        plot_bgcolor="rgba(15, 23, 42, 0.45)",
-        font=dict(color="#e2e8f0"),
+        title=dict(
+            text=f"{symbol} · ${latest['close']:.2f} · {change_pct:+.2f}%",
+            font=dict(color="#0f172a", size=20),
+            x=0.01,
+        ),
+        template="plotly_white",
+        height=520 if show_rsi else 455,
+        margin=dict(l=20, r=20, t=52, b=26),
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#f8fafc",
+        font=dict(color="#0f172a", family="Inter, Arial, sans-serif"),
+        dragmode=False,
+        hovermode="x unified",
         xaxis=dict(
             rangeslider=dict(visible=False),
+            fixedrange=True,
             showgrid=True,
-            gridcolor="rgba(148, 163, 184, 0.12)",
+            gridcolor="#e2e8f0",
+            linecolor="#cbd5e1",
+            zeroline=False,
         ),
         yaxis=dict(
             title="Price",
+            fixedrange=True,
             domain=[0.28 if show_rsi else 0.18, 1.0],
             showgrid=True,
-            gridcolor="rgba(148, 163, 184, 0.12)",
+            gridcolor="#e2e8f0",
+            linecolor="#cbd5e1",
+            zeroline=False,
         ),
         yaxis2=dict(
             title="Volume",
+            fixedrange=True,
             domain=[0.0, 0.16],
             showgrid=False,
             visible=show_volume,
         ),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            font=dict(color="#334155"),
+        ),
     )
 
     if show_rsi:
         fig.update_layout(
-            yaxis=dict(domain=[0.42, 1.0]),
-            yaxis2=dict(domain=[0.22, 0.34], visible=show_volume, showgrid=False),
+            yaxis=dict(domain=[0.42, 1.0], fixedrange=True, showgrid=True, gridcolor="#e2e8f0"),
+            yaxis2=dict(domain=[0.22, 0.34], fixedrange=True, visible=show_volume, showgrid=False),
             yaxis3=dict(
                 title="RSI",
                 domain=[0.0, 0.16],
                 range=[0, 100],
+                fixedrange=True,
                 showgrid=True,
-                gridcolor="rgba(148, 163, 184, 0.12)",
+                gridcolor="#e2e8f0",
+                zeroline=False,
             ),
         )
-        fig.add_hline(y=70, line_dash="dot", line_color="#ef4444", opacity=0.5, yref="y3")
-        fig.add_hline(y=30, line_dash="dot", line_color="#22c55e", opacity=0.5, yref="y3")
+        fig.add_hline(y=70, line_dash="dot", line_color="#dc2626", opacity=0.55, yref="y3")
+        fig.add_hline(y=30, line_dash="dot", line_color="#059669", opacity=0.55, yref="y3")
 
     return fig
 
@@ -243,10 +316,10 @@ if "active_watchlist" not in st.session_state:
 st.markdown(
     """
     <div class="hero-card">
-        <p class="small-muted">📈 Streamlit + yfinance + Plotly</p>
-        <h1>Stock Watchlist Dashboard</h1>
-        <p class="small-muted">
-            Create custom watchlists, rename them, add tickers, and view real candlestick charts for every stock in the selected watchlist.
+        <div class="eyebrow">Market intelligence dashboard</div>
+        <h1 class="hero-title">Professional Stock Watchlist Monitor</h1>
+        <p class="hero-subtitle">
+            Organise equities, ETFs, crypto pairs, and ASX tickers into custom watchlists. Review real market data through clean, fixed-position candlestick charts with optional technical overlays.
         </p>
     </div>
     """,
@@ -386,17 +459,6 @@ else:
                     st.error(f"No data found for {symbol}. Check the ticker symbol or interval.")
                     continue
 
-                latest = df.iloc[-1]
-                prev = df.iloc[-2] if len(df) > 1 else latest
-                change = latest["close"] - prev["close"]
-                change_pct = (change / prev["close"] * 100) if prev["close"] else 0
-
-                metric_cols = st.columns(4)
-                metric_cols[0].metric("Last price", f"${latest['close']:.2f}", f"{change_pct:+.2f}%")
-                metric_cols[1].metric("Open", f"${latest['open']:.2f}")
-                metric_cols[2].metric("High", f"${latest['high']:.2f}")
-                metric_cols[3].metric("Volume", f"{latest['volume']:,.0f}")
-
                 fig = create_candlestick_chart(
                     symbol=symbol,
                     df=df,
@@ -405,7 +467,7 @@ else:
                     show_volume=show_volume,
                     show_rsi=show_rsi,
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
 
 st.caption(
     "Data is provided through yfinance/Yahoo Finance. This dashboard is for educational and informational use only, not financial advice."

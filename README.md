@@ -1,6 +1,15 @@
-# Stock Watchlist Dashboard
+# Market Watchlist Dashboard
 
-A Streamlit app using **yfinance** and **Plotly** to create custom stock watchlists and display candlestick charts for every stock in the selected watchlist.
+A professional Streamlit dashboard using **yfinance** and **Plotly** to manage custom stock watchlists and display fixed-position candlestick charts.
+
+## Revisions included
+
+- Charts are no longer draggable or accidentally zoomable.
+- Plotly mode bar is hidden for a cleaner dashboard experience.
+- Chart axes use fixed ranges to prevent accidental repositioning.
+- The page now uses a clearer light professional theme with stronger text contrast.
+- Removed the metric row above each chart: Last Price, Open, High, and Volume.
+- Updated the header to a more professional market dashboard style.
 
 ## Features
 
@@ -16,7 +25,7 @@ A Streamlit app using **yfinance** and **Plotly** to create custom stock watchli
 ## Project structure
 
 ```txt
-stock-dashboard/
+stock-dashboard-revised/
   app.py
   requirements.txt
   watchlists.json
