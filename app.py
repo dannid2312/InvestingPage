@@ -144,14 +144,13 @@ def add_bbands(fig, full_df, display_df, start_date):
     fig.add_trace(go.Scatter(x=data["display_index"], y=data["lower"], mode="lines", name="", showlegend=False, line=dict(color="#9333ea", width=1.3, dash="dot"), fill="tonexty", fillcolor="rgba(147,51,234,.08)", hoverinfo="skip"))
 
 
-def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, chart_ratio):
+def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, chart_width, price_height):
     start_date = display_df["date"].min()
     display_df = add_index(display_df)
 
     # Treat Volume, RSI, and MACD as true lower panels.
-    # The main candlestick area follows the selected chart ratio; each enabled lower
-    # panel adds its own predictable height so the chart does not become cramped.
-    price_height = max(300, min(620, int(620 * chart_ratio)))
+    # The main candlestick area uses the user-provided width and height.
+    price_height = int(price_height)
     panel_heights = []
     if show_macd:
         panel_heights.append(("macd", 95))
@@ -161,8 +160,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
         panel_heights.append(("volume", 65))
 
     gap_height = 12
-    total_gap_height = gap_height * len(panel_heights)
-    total_height = price_height + sum(height for _, height in panel_heights) + total_gap_height
+    total_height = price_height + sum(height for _, height in panel_heights) + gap_height * len(panel_heights)
 
     domains = {}
     cursor = 0
@@ -236,12 +234,20 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             fig.add_trace(go.Scatter(x=mm["display_index"], y=mm["macd"], mode="lines", name="", showlegend=False, line=dict(color="#2563eb", width=1.8), yaxis="y4", hoverinfo="skip"))
             fig.add_trace(go.Scatter(x=mm["display_index"], y=mm["signal"], mode="lines", name="", showlegend=False, line=dict(color="#f97316", width=1.6), yaxis="y4", hoverinfo="skip"))
 
+    # Axis ranges are captured for mirrored left-side labels.
+    price_min = float(display_df["low"].min())
+    price_max = float(display_df["high"].max())
+    price_pad = (price_max - price_min) * 0.04 if price_max > price_min else 1
+    price_range = [price_min - price_pad, price_max + price_pad]
+    volume_range = [0, float(display_df["volume"].max())] if show_volume else [0, 1]
+
     fig.update_layout(
         title_text="",
         template="plotly_white",
-        autosize=True,
+        autosize=False,
+        width=int(chart_width),
         height=total_height,
-        margin=dict(l=6, r=6, t=0, b=0),
+        margin=dict(l=44, r=44, t=0, b=0),
         paper_bgcolor="#fff",
         plot_bgcolor="#f8fafc",
         dragmode=False,
@@ -261,6 +267,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             title_text="",
             fixedrange=True,
             side="right",
+            range=price_range,
             tickformat=".2f",
             nticks=5,
             automargin=True,
@@ -272,9 +279,10 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
         yaxis2=dict(
             title_text="",
             fixedrange=True,
+            side="right",
+            range=volume_range,
             domain=domains.get("volume", [0, 0]),
             visible=show_volume,
-            side="right",
             showticklabels=show_volume,
             tickfont=dict(size=8),
             nticks=2,
@@ -287,6 +295,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             overlaying="y",
             side="left",
             fixedrange=True,
+            range=price_range,
             showticklabels=True,
             tickformat=".2f",
             nticks=5,
@@ -299,6 +308,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             overlaying="y2",
             side="left",
             fixedrange=True,
+            range=volume_range,
             visible=show_volume,
             showticklabels=show_volume,
             nticks=2,
@@ -307,6 +317,11 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             zeroline=False,
         ),
     )
+
+    # Invisible traces force Plotly to render mirrored axes on the left side.
+    fig.add_trace(go.Scatter(x=display_df["display_index"], y=display_df["close"], yaxis="y5", mode="lines", line=dict(width=0), opacity=0, showlegend=False, hoverinfo="skip", name=""))
+    if show_volume:
+        fig.add_trace(go.Scatter(x=display_df["display_index"], y=display_df["volume"], yaxis="y6", mode="lines", line=dict(width=0), opacity=0, showlegend=False, hoverinfo="skip", name=""))
 
     if show_rsi:
         fig.update_layout(
@@ -337,14 +352,21 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
                 zeroline=False,
             ),
         )
+        fig.add_trace(go.Scatter(x=display_df["display_index"], y=[50] * len(display_df), yaxis="y7", mode="lines", line=dict(width=0), opacity=0, showlegend=False, hoverinfo="skip", name=""))
         fig.add_hline(y=70, line_dash="dot", line_color="#dc2626", opacity=.55, yref="y3")
         fig.add_hline(y=30, line_dash="dot", line_color="#059669", opacity=.55, yref="y3")
 
     if show_macd:
+        macd_range = None
+        if 'mm' in locals() and not mm.empty:
+            max_abs = float(max(abs(mm["macd"]).max(), abs(mm["signal"]).max(), abs(mm["hist"]).max()))
+            max_abs = max(max_abs, 0.01)
+            macd_range = [-max_abs * 1.15, max_abs * 1.15]
         fig.update_layout(
             yaxis4=dict(
                 title_text="",
                 domain=domains.get("macd", [0, 0]),
+                range=macd_range,
                 fixedrange=True,
                 side="right",
                 nticks=3,
@@ -360,6 +382,7 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
                 title_text="",
                 overlaying="y4",
                 side="left",
+                range=macd_range,
                 fixedrange=True,
                 nticks=3,
                 showticklabels=True,
@@ -368,6 +391,8 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
                 zeroline=False,
             ),
         )
+        if macd_range is not None:
+            fig.add_trace(go.Scatter(x=display_df["display_index"], y=[0] * len(display_df), yaxis="y8", mode="lines", line=dict(width=0), opacity=0, showlegend=False, hoverinfo="skip", name=""))
 
     for trace in fig.data:
         trace.showlegend = False
@@ -452,13 +477,13 @@ with st.expander("Watchlist management", expanded=True):
             st.rerun()
 
 with st.expander("Chart settings and indicators", expanded=True):
-    st.markdown('<div class="section-help">SMA, Bollinger, RSI, and MACD calculations use full historical data. Volume, RSI, and MACD each get their own lower panel when enabled. Set your own width x height chart ratio below.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-help">SMA, Bollinger, RSI, and MACD calculations use full historical data. Volume, RSI, and MACD each get their own lower panel when enabled. Set your own chart width and main candlestick height below.</div>', unsafe_allow_html=True)
     interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
-    ratio_col1, ratio_col2 = st.columns(2)
-    with ratio_col1:
-        ratio_width = st.number_input("Chart ratio width", min_value=1.0, max_value=50.0, value=16.0, step=1.0)
-    with ratio_col2:
-        ratio_height = st.number_input("Chart ratio height", min_value=1.0, max_value=50.0, value=9.0, step=1.0)
+    size_col1, size_col2 = st.columns(2)
+    with size_col1:
+        chart_width = st.number_input("Chart width px", min_value=280, max_value=1400, value=380, step=20)
+    with size_col2:
+        price_height = st.number_input("Main chart height px", min_value=220, max_value=900, value=320, step=20)
     max_points = st.select_slider("Visible recent candles", options=[20, 30, 45, 60, 75, 90, 120, 180], value=60)
     st.markdown('<div class="section-label">Indicators</div>', unsafe_allow_html=True)
     show_sma20 = st.toggle("SMA 20", value=True)
@@ -474,7 +499,7 @@ with st.expander("Chart settings and indicators", expanded=True):
         st.rerun()
 
 settings = {"SMA20": show_sma20, "SMA50": show_sma50, "SMA100": show_sma100, "SMA200": show_sma200, "Bollinger Bands": show_bbands}
-chart_ratio = ratio_height / ratio_width
+
 
 st.divider()
 active = st.session_state.active_watchlist
@@ -516,7 +541,7 @@ else:
                 st.caption(f"{symbol}: SMA 200 needs at least 200 data points. Available: {len(full_df)}.")
             if len(full_df) < 35 and show_macd:
                 st.caption(f"{symbol}: MACD needs at least 35 data points. Available: {len(full_df)}.")
-            fig = make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, chart_ratio)
-            st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
+            fig = make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, chart_width, price_height)
+            st.plotly_chart(fig, use_container_width=False, config=PLOT_CONFIG)
 
 st.caption("Data is provided through yfinance/Yahoo Finance. This dashboard is for educational and informational use only, not financial advice.")
