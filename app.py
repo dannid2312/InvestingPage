@@ -13,13 +13,14 @@ st.set_page_config(
     page_title="Market Watchlist Dashboard",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 WATCHLIST_FILE = Path("watchlists.json")
 DEFAULT_WATCHLISTS = {
     "AI Leaders": ["NVDA", "MSFT", "AMD"],
     "Mega Cap Tech": ["AAPL", "GOOGL", "AMZN"],
+    "ASX Watchlist": ["BHP.AX", "CBA.AX", "WES.AX"],
 }
 
 PLOT_CONFIG = {
@@ -43,17 +44,10 @@ st.markdown(
         .block-container {
             padding-top: 2rem;
             padding-bottom: 3rem;
-            max-width: 1420px;
-        }
-        section[data-testid="stSidebar"] {
-            background: #ffffff;
-            border-right: 1px solid #dbe3ef;
-        }
-        section[data-testid="stSidebar"] * {
-            color: #0f172a;
+            max-width: 1440px;
         }
         .hero-card {
-            padding: 2rem;
+            padding: 2.1rem;
             border: 1px solid #dbe3ef;
             border-radius: 1.5rem;
             background: #ffffff;
@@ -61,32 +55,44 @@ st.markdown(
         }
         .eyebrow {
             color: #2563eb;
-            font-weight: 700;
-            letter-spacing: 0.08em;
+            font-weight: 800;
+            letter-spacing: 0.09em;
             text-transform: uppercase;
             font-size: 0.78rem;
             margin-bottom: 0.75rem;
         }
         .hero-title {
             color: #0f172a;
-            font-size: 2.8rem;
+            font-size: 2.7rem;
             line-height: 1.05;
-            font-weight: 800;
+            font-weight: 850;
             margin: 0 0 0.9rem 0;
         }
         .hero-subtitle {
             color: #475569;
-            max-width: 920px;
+            max-width: 950px;
             font-size: 1.05rem;
             line-height: 1.7;
             margin: 0;
         }
-        .section-card {
+        .panel-card {
             border: 1px solid #dbe3ef;
             border-radius: 1.25rem;
             background: #ffffff;
             box-shadow: 0 14px 42px rgba(15, 23, 42, 0.07);
-            padding: 1rem;
+            padding: 1.15rem;
+            margin-bottom: 1rem;
+        }
+        .panel-title {
+            color: #0f172a;
+            font-weight: 800;
+            font-size: 1.05rem;
+            margin-bottom: 0.35rem;
+        }
+        .panel-subtitle {
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
         }
         h1, h2, h3, h4, h5, h6, p, label, span, div {
             color: #0f172a;
@@ -94,11 +100,13 @@ st.markdown(
         .stCaption, [data-testid="stCaptionContainer"] {
             color: #64748b !important;
         }
-        div[data-testid="stMetricValue"], div[data-testid="stMetricDelta"] {
-            color: #0f172a;
-        }
         .stAlert {
             border-radius: 1rem;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            border-color: #dbe3ef !important;
+            background: #ffffff;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
         }
     </style>
     """,
@@ -157,11 +165,54 @@ def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
+def add_sma_trace(fig: go.Figure, df: pd.DataFrame, period: int, color: str) -> None:
+    if len(df) >= period:
+        fig.add_trace(
+            go.Scatter(
+                x=df["date"],
+                y=df["close"].rolling(period).mean(),
+                mode="lines",
+                name=f"SMA {period}",
+                line=dict(color=color, width=2.2),
+            )
+        )
+
+
+def add_bollinger_bands(fig: go.Figure, df: pd.DataFrame, period: int = 20, std_dev: float = 2.0) -> None:
+    if len(df) < period:
+        return
+
+    middle = df["close"].rolling(period).mean()
+    std = df["close"].rolling(period).std()
+    upper = middle + std_dev * std
+    lower = middle - std_dev * std
+
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"],
+            y=upper,
+            mode="lines",
+            name="BB Upper",
+            line=dict(color="#9333ea", width=1.6, dash="dot"),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"],
+            y=lower,
+            mode="lines",
+            name="BB Lower",
+            line=dict(color="#9333ea", width=1.6, dash="dot"),
+            fill="tonexty",
+            fillcolor="rgba(147, 51, 234, 0.08)",
+        )
+    )
+
+
 def create_candlestick_chart(
     symbol: str,
     df: pd.DataFrame,
-    show_sma20: bool,
-    show_ema9: bool,
+    indicator_settings: dict[str, bool],
     show_volume: bool,
     show_rsi: bool,
 ) -> go.Figure:
@@ -182,27 +233,16 @@ def create_candlestick_chart(
         )
     )
 
-    if show_sma20 and len(df) >= 20:
-        fig.add_trace(
-            go.Scatter(
-                x=df["date"],
-                y=df["close"].rolling(20).mean(),
-                mode="lines",
-                name="SMA 20",
-                line=dict(color="#2563eb", width=2.4),
-            )
-        )
-
-    if show_ema9 and len(df) >= 9:
-        fig.add_trace(
-            go.Scatter(
-                x=df["date"],
-                y=df["close"].ewm(span=9, adjust=False).mean(),
-                mode="lines",
-                name="EMA 9",
-                line=dict(color="#f97316", width=2.4),
-            )
-        )
+    if indicator_settings["SMA20"]:
+        add_sma_trace(fig, df, 20, "#2563eb")
+    if indicator_settings["SMA50"]:
+        add_sma_trace(fig, df, 50, "#f97316")
+    if indicator_settings["SMA100"]:
+        add_sma_trace(fig, df, 100, "#0891b2")
+    if indicator_settings["SMA200"]:
+        add_sma_trace(fig, df, 200, "#475569")
+    if indicator_settings["Bollinger Bands"]:
+        add_bollinger_bands(fig, df, period=20, std_dev=2.0)
 
     if show_volume:
         colors = ["#10b981" if row.close >= row.open else "#ef4444" for row in df.itertuples()]
@@ -212,7 +252,7 @@ def create_candlestick_chart(
                 y=df["volume"],
                 name="Volume",
                 marker_color=colors,
-                opacity=0.28,
+                opacity=0.24,
                 yaxis="y2",
             )
         )
@@ -277,7 +317,7 @@ def create_candlestick_chart(
             y=1.02,
             xanchor="right",
             x=1,
-            font=dict(color="#334155"),
+            font=dict(color="#334155", size=11),
         ),
     )
 
@@ -319,7 +359,7 @@ st.markdown(
         <div class="eyebrow">Market intelligence dashboard</div>
         <h1 class="hero-title">Professional Stock Watchlist Monitor</h1>
         <p class="hero-subtitle">
-            Organise equities, ETFs, crypto pairs, and ASX tickers into custom watchlists. Review real market data through clean, fixed-position candlestick charts with optional technical overlays.
+            Build watchlists, add tickers, and review fixed-position candlestick charts with professional technical overlays including SMA 20, SMA 50, SMA 100, SMA 200, and Bollinger Bands.
         </p>
     </div>
     """,
@@ -328,26 +368,25 @@ st.markdown(
 st.write("")
 
 # ------------------------------------------------------------
-# Sidebar controls
+# Main-page controls
 # ------------------------------------------------------------
-with st.sidebar:
-    st.header("Watchlists")
+watchlist_names = list(st.session_state.watchlists.keys())
+if st.session_state.active_watchlist not in watchlist_names and watchlist_names:
+    st.session_state.active_watchlist = watchlist_names[0]
 
-    watchlist_names = list(st.session_state.watchlists.keys())
-    if st.session_state.active_watchlist not in watchlist_names and watchlist_names:
-        st.session_state.active_watchlist = watchlist_names[0]
+control_left, control_mid, control_right = st.columns([1.05, 1.05, 1.2])
 
-    selected = st.radio(
-        "Select watchlist",
+with control_left:
+    st.markdown('<div class="panel-title">Watchlist selection</div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel-subtitle">Choose, create, rename, or delete your lists.</div>', unsafe_allow_html=True)
+
+    selected = st.selectbox(
+        "Active watchlist",
         watchlist_names,
         index=watchlist_names.index(st.session_state.active_watchlist),
-        label_visibility="collapsed",
     )
     st.session_state.active_watchlist = selected
 
-    st.divider()
-
-    st.subheader("Create watchlist")
     new_watchlist = st.text_input("New watchlist name", placeholder="e.g. Dividend Picks")
     if st.button("＋ Create watchlist", use_container_width=True):
         name = new_watchlist.strip()
@@ -361,13 +400,14 @@ with st.sidebar:
             save_watchlists(st.session_state.watchlists)
             st.rerun()
 
-    st.divider()
+with control_mid:
+    st.markdown('<div class="panel-title">Manage selected list</div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel-subtitle">Rename the current list or remove it.</div>', unsafe_allow_html=True)
 
-    st.subheader("Manage selected")
-    rename_value = st.text_input("Rename watchlist", value=st.session_state.active_watchlist)
-    col_rename, col_delete = st.columns(2)
+    rename_value = st.text_input("Rename selected watchlist", value=st.session_state.active_watchlist)
+    rename_col, delete_col = st.columns(2)
 
-    with col_rename:
+    with rename_col:
         if st.button("Rename", use_container_width=True):
             old_name = st.session_state.active_watchlist
             new_name = rename_value.strip()
@@ -381,26 +421,49 @@ with st.sidebar:
                 save_watchlists(st.session_state.watchlists)
                 st.rerun()
 
-    with col_delete:
+    with delete_col:
         if st.button("Delete", use_container_width=True, disabled=len(st.session_state.watchlists) <= 1):
             st.session_state.watchlists.pop(st.session_state.active_watchlist, None)
             st.session_state.active_watchlist = next(iter(st.session_state.watchlists.keys()))
             save_watchlists(st.session_state.watchlists)
             st.rerun()
 
-    st.divider()
+with control_right:
+    st.markdown('<div class="panel-title">Market data settings</div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel-subtitle">Set timeframe and chart overlays.</div>', unsafe_allow_html=True)
 
-    st.subheader("Chart settings")
-    period = st.selectbox("Period", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=1)
-    interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
-    show_sma20 = st.toggle("SMA 20", value=True)
-    show_ema9 = st.toggle("EMA 9", value=True)
-    show_volume = st.toggle("Volume", value=True)
+    settings_col1, settings_col2 = st.columns(2)
+    with settings_col1:
+        period = st.selectbox("Period", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=1)
+    with settings_col2:
+        interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
+
+    indicator_col1, indicator_col2, indicator_col3 = st.columns(3)
+    with indicator_col1:
+        show_sma20 = st.toggle("SMA 20", value=True)
+        show_sma50 = st.toggle("SMA 50", value=False)
+    with indicator_col2:
+        show_sma100 = st.toggle("SMA 100", value=False)
+        show_sma200 = st.toggle("SMA 200", value=False)
+    with indicator_col3:
+        show_bollinger = st.toggle("Bollinger Bands", value=False)
+        show_volume = st.toggle("Volume", value=True)
+
     show_rsi = st.toggle("RSI 14", value=False)
 
     if st.button("Refresh market data", use_container_width=True):
         fetch_stock_history.clear()
         st.rerun()
+
+indicator_settings = {
+    "SMA20": show_sma20,
+    "SMA50": show_sma50,
+    "SMA100": show_sma100,
+    "SMA200": show_sma200,
+    "Bollinger Bands": show_bollinger,
+}
+
+st.divider()
 
 # ------------------------------------------------------------
 # Main watchlist area
@@ -408,13 +471,13 @@ with st.sidebar:
 active = st.session_state.active_watchlist
 symbols = st.session_state.watchlists.get(active, [])
 
-left, right = st.columns([1.2, 1])
+list_title_col, add_symbol_col = st.columns([1.1, 1])
 
-with left:
+with list_title_col:
     st.subheader(active)
     st.caption(f"{len(symbols)} stock(s) in this watchlist")
 
-with right:
+with add_symbol_col:
     with st.form("add_symbol_form", clear_on_submit=True):
         symbol_input = st.text_input(
             "Add stock ticker",
@@ -462,8 +525,7 @@ else:
                 fig = create_candlestick_chart(
                     symbol=symbol,
                     df=df,
-                    show_sma20=show_sma20,
-                    show_ema9=show_ema9,
+                    indicator_settings=indicator_settings,
                     show_volume=show_volume,
                     show_rsi=show_rsi,
                 )
