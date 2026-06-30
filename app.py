@@ -351,26 +351,28 @@ def style_screener_table(df):
     return df.style.map(color_cells)
 
 def apply_landing_table_filters(df):
-    """Render per-column filters for the landing screener table and return filtered data."""
+    """Render one dropdown filter per screener table column and return filtered data."""
     filtered_df = df.copy()
     filter_columns = [column for column in df.columns if column != "Ticker"]
 
     with st.expander("Filter screener table columns", expanded=True):
-        st.caption("Leave all values selected to keep a column unfiltered. Remove values to narrow the table.")
+        st.caption("Use each dropdown to filter a column. Choose All to keep that column unfiltered.")
         for row_start in range(0, len(filter_columns), 3):
             cols = st.columns(3)
             for idx, column in enumerate(filter_columns[row_start:row_start + 3]):
-                options = sorted([str(value) for value in df[column].dropna().unique().tolist()])
-                if not options:
+                values = sorted([str(value) for value in df[column].dropna().unique().tolist()])
+                if not values:
                     continue
+                options = ["All"] + values
                 with cols[idx]:
-                    selected_values = st.multiselect(
+                    selected_value = st.selectbox(
                         column,
                         options=options,
-                        default=options,
+                        index=0,
                         key=f"landing_filter_{column}",
                     )
-                filtered_df = filtered_df[filtered_df[column].astype(str).isin(selected_values)]
+                if selected_value != "All":
+                    filtered_df = filtered_df[filtered_df[column].astype(str) == selected_value]
 
     return filtered_df
 
@@ -561,7 +563,7 @@ def show_landing_page():
         - **Price>DailySMA20 / 50 / 100 / 200**: Yes when latest daily close is above the selected daily SMA.
         - **Price>WeeklySMA20 / 50 / 100 / 200**: Yes when latest weekly close is above the selected weekly SMA.
         - **Price>MonthlySMA20 / 50 / 100 / 200**: Yes when latest monthly close is above the selected monthly SMA.
-        - Use the table filter panel to filter each MACD or SMA condition column.
+        - Use each dropdown in the table filter panel to filter MACD or SMA condition columns.
         """)
     with c2:
         st.markdown("""
