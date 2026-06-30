@@ -691,10 +691,6 @@ if st.session_state.active_watchlist not in names and names:
     st.session_state.active_watchlist = names[0]
 
 with st.sidebar:
-    st.header("Navigation")
-    st.session_state.page = st.radio("Go to", ["Landing", "Stock Screener"], index=["Landing", "Stock Screener"].index(st.session_state.page), label_visibility="collapsed")
-
-    st.divider()
     st.header("Watchlist")
     st.caption("Create, select, rename, and manage your ticker lists.")
     st.markdown('<div class="section-label">Active watchlist</div>', unsafe_allow_html=True)
@@ -774,28 +770,38 @@ with st.sidebar:
 
     st.markdown('<div class="section-label">Indicators</div>', unsafe_allow_html=True)
     show_sma20 = st.toggle("SMA 20", value=True)
-    show_sma50 = st.toggle("SMA 50", value=False)
-    show_sma100 = st.toggle("SMA 100", value=False)
-    show_sma200 = st.toggle("SMA 200", value=False)
-    show_bbands = st.toggle("Bollinger Bands", value=False)
+    show_sma50 = st.toggle("SMA 50", value=True)
+    show_sma100 = st.toggle("SMA 100", value=True)
+    show_sma200 = st.toggle("SMA 200", value=True)
+    show_bbands = st.toggle("Bollinger Bands", value=True)
     show_volume = st.toggle("Volume", value=True)
-    show_rsi = st.toggle("RSI 14", value=False)
-    show_macd = st.toggle("MACD", value=False)
+    show_rsi = st.toggle("RSI 14", value=True)
+    show_macd = st.toggle("MACD", value=True)
 
-    st.divider()
-    st.header("Stock filters")
-    filter_timeframe = st.selectbox("Filter timeframe", ["Daily", "Weekly", "Monthly"], index=0)
-    filter_options = [
-        "Last Price > SMA20", "Last Price > SMA50", "Last Price > SMA100", "Last Price > SMA200",
-        "Last Price < SMA20", "Last Price < SMA50", "Last Price < SMA100", "Last Price < SMA200",
-        "MACD > Signal", "MACD < Signal", "Weekly MACD > Weekly Signal", "Weekly MACD < Weekly Signal",
-    ]
-    selected_filters = st.multiselect("Show stocks where", filter_options)
-    filter_match_mode = st.radio("Filter match mode", ["All selected filters", "Any selected filter"], disabled=not selected_filters)
-    show_filter_diagnostics = st.toggle("Show filter diagnostics", value=False)
 
     if st.button("Refresh market data"):
         fetch_stock_history.clear()
+        st.rerun()
+
+
+# Default screener filter values. Stock filtering now lives on the Landing page table.
+selected_filters = []
+filter_timeframe = "Daily"
+filter_match_mode = "All selected filters"
+show_filter_diagnostics = False
+
+# Top heading navigation
+nav_col1, nav_col2, nav_col3 = st.columns([2.4, 1, 1])
+with nav_col1:
+    st.markdown("### SignalScope")
+    st.caption("Landing quick screener and full chart screener")
+with nav_col2:
+    if st.button("Landing", use_container_width=True, type="primary" if st.session_state.page == "Landing" else "secondary"):
+        st.session_state.page = "Landing"
+        st.rerun()
+with nav_col3:
+    if st.button("Stock Screener", use_container_width=True, type="primary" if st.session_state.page == "Stock Screener" else "secondary"):
+        st.session_state.page = "Stock Screener"
         st.rerun()
 
 # =============================================================================
