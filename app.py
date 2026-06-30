@@ -6,7 +6,15 @@ import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 
-st.set_page_config(page_title="Market Watchlist Dashboard", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
+# =============================================================================
+# App configuration
+# =============================================================================
+st.set_page_config(
+    page_title="SignalScope Stock Screener",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 WATCHLIST_FILE = Path("watchlists.json")
 DEFAULT_WATCHLISTS = {
@@ -15,35 +23,163 @@ DEFAULT_WATCHLISTS = {
     "ASX Watchlist": ["BHP.AX", "CBA.AX", "WES.AX"],
 }
 
-PLOT_CONFIG = {"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "showTips": False, "staticPlot": True, "responsive": True}
+PLOT_CONFIG = {
+    "displayModeBar": False,
+    "scrollZoom": False,
+    "doubleClick": False,
+    "showTips": False,
+    "staticPlot": True,
+    "responsive": True,
+}
 
-st.markdown("""
-<style>
-html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden !important; }
-.stApp { background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 48%, #eff6ff 100%); color: #0f172a; }
-.block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 1120px; }
-section[data-testid="stSidebar"] { background:#ffffff; border-right:1px solid #dbe3ef; }
-section[data-testid="stSidebar"] * { color:#0f172a; }
-.hero-card { padding: 1.55rem; border: 1px solid #dbe3ef; border-radius: 1.3rem; background: #fff; box-shadow: 0 18px 60px rgba(15,23,42,.08); }
-.eyebrow { color: #2563eb; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .76rem; margin-bottom: .65rem; }
-.hero-title { color:#0f172a; font-size: clamp(1.75rem,5vw,2.65rem); line-height:1.08; font-weight:850; margin:0 0 .75rem 0; }
-.hero-subtitle { color:#475569; max-width:920px; font-size: clamp(.95rem,2.4vw,1.05rem); line-height:1.6; margin:0; }
-.section-label { color:#0f172a; font-weight:800; font-size:1.02rem; margin-top:.25rem; margin-bottom:.15rem; }
-.stock-head { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; flex-wrap:wrap; margin-bottom:.4rem; }
-.stock-title { font-weight:850; font-size:clamp(1rem,3vw,1.18rem); }
-.stock-sub { color:#64748b; font-size:.82rem; }
-.price-pill { border:1px solid #dbe3ef; border-radius:999px; background:#f8fafc; padding:.36rem .62rem; color:#334155; font-size:.82rem; font-weight:750; white-space:nowrap; }
-.indicator-row { color:#475569; font-size:.78rem; line-height:1.45; margin:.15rem 0 .45rem 0; }
-h1,h2,h3,h4,h5,h6,p,label,span,div { color:#0f172a; }
-.stCaption, [data-testid="stCaptionContainer"] { color:#64748b !important; }
-div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"] { border-color:#dbe3ef !important; background:#fff; box-shadow:0 10px 30px rgba(15,23,42,.05); overflow:hidden !important; }
-div.stButton > button { width:100%; border-radius:.85rem; min-height:2.7rem; font-weight:750; }
-div[data-testid="stPlotlyChart"], div[data-testid="stPlotlyChart"] > div, .js-plotly-plot, .plot-container, .svg-container { width:100% !important; max-width:100% !important; overflow:hidden !important; }
-@media (max-width:768px){ .block-container{padding-left:.65rem !important; padding-right:.65rem !important; max-width:100vw !important;} .hero-card{padding:1rem; border-radius:1rem;} .hero-title{font-size:1.8rem !important;} .hero-subtitle{font-size:.94rem !important; line-height:1.5 !important;} .price-pill{font-size:.76rem; padding:.32rem .5rem;} div.stButton > button{min-height:2.9rem; font-size:.95rem;} }
-</style>
-""", unsafe_allow_html=True)
+# =============================================================================
+# Styling
+# =============================================================================
+st.markdown(
+    """
+    <style>
+        html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden !important; }
+        .stApp {
+            background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 32rem),
+                        linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #eff6ff 100%);
+            color: #0f172a;
+        }
+        .block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 1120px; }
+        section[data-testid="stSidebar"] { background:#ffffff; border-right:1px solid #dbe3ef; }
+        section[data-testid="stSidebar"] * { color:#0f172a; }
+        .hero-card {
+            padding: 1.75rem;
+            border: 1px solid #dbe3ef;
+            border-radius: 1.4rem;
+            background: #ffffff;
+            box-shadow: 0 18px 60px rgba(15,23,42,.08);
+        }
+        .eyebrow {
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            color:#2563eb;
+            background:rgba(37,99,235,.08);
+            border:1px solid rgba(37,99,235,.18);
+            padding:8px 12px;
+            border-radius:999px;
+            font-size:.78rem;
+            font-weight:850;
+            letter-spacing:.08em;
+            text-transform:uppercase;
+            margin-bottom:16px;
+        }
+        .hero-title {
+            color:#0f172a;
+            font-size:clamp(2.3rem, 7vw, 5rem);
+            line-height:.95;
+            letter-spacing:-.075em;
+            font-weight:900;
+            margin:0;
+        }
+        .hero-copy {
+            color:#64748b;
+            max-width:680px;
+            font-size:clamp(1rem, 2vw, 1.16rem);
+            line-height:1.7;
+            margin:22px 0 0;
+        }
+        .hero-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:28px; }
+        .primary-button, .secondary-button {
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            min-height:44px;
+            padding:0 18px;
+            border-radius:999px;
+            font-weight:850;
+            text-decoration:none;
+        }
+        .primary-button { color:white; background:#2563eb; box-shadow:0 18px 44px rgba(37,99,235,.24); }
+        .secondary-button { color:#0f172a; background:#fff; border:1px solid #dbe3ef; }
+        .mock-screen {
+            border:1px solid #dbe3ef;
+            border-radius:28px;
+            background:#fff;
+            box-shadow:0 24px 80px rgba(15,23,42,.10);
+            overflow:hidden;
+        }
+        .mock-top {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            padding:16px;
+            border-bottom:1px solid #dbe3ef;
+            background:linear-gradient(180deg, #fff, #f8fafc);
+        }
+        .dots { display:flex; gap:7px; }
+        .dot { width:10px; height:10px; border-radius:999px; background:#cbd5e1; }
+        .dot:nth-child(1){ background:#ef4444; }
+        .dot:nth-child(2){ background:#f59e0b; }
+        .dot:nth-child(3){ background:#22c55e; }
+        .mock-body { padding:16px; }
+        .filter-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:14px; }
+        .filter-pill {
+            padding:10px 12px;
+            border:1px solid #dbe3ef;
+            border-radius:14px;
+            background:#f8fafc;
+            color:#334155;
+            font-size:.78rem;
+            font-weight:800;
+        }
+        .demo-chart {
+            height:230px;
+            display:grid;
+            align-items:end;
+            grid-template-columns:repeat(26, 1fr);
+            gap:5px;
+            padding:10px 0 0;
+            border-top:1px solid #dbe3ef;
+            border-bottom:1px solid #dbe3ef;
+        }
+        .candle { position:relative; width:100%; border-radius:4px; background:#059669; min-height:36px; }
+        .candle.red { background:#dc2626; }
+        .mini-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-top:14px; }
+        .mini-card { padding:12px; border-radius:16px; border:1px solid #dbe3ef; background:#f8fafc; }
+        .mini-card small { color:#64748b; font-weight:700; }
+        .mini-card strong { display:block; margin-top:5px; }
+        .feature-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-top:24px; }
+        .feature-card { padding:22px; border-radius:24px; border:1px solid #dbe3ef; background:#fff; box-shadow:0 14px 40px rgba(15,23,42,.055); }
+        .feature-card h3 { margin:0 0 8px; }
+        .feature-card p { margin:0; color:#64748b; line-height:1.6; }
+        .stock-head { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; flex-wrap:wrap; margin-bottom:.4rem; }
+        .stock-title { font-weight:850; font-size:clamp(1rem,3vw,1.18rem); }
+        .stock-sub { color:#64748b; font-size:.82rem; }
+        .price-pill { border:1px solid #dbe3ef; border-radius:999px; background:#f8fafc; padding:.36rem .62rem; color:#334155; font-size:.82rem; font-weight:750; white-space:nowrap; }
+        .indicator-row { color:#475569; font-size:.78rem; line-height:1.45; margin:.15rem 0 .45rem 0; }
+        h1,h2,h3,h4,h5,h6,p,label,span,div { color:#0f172a; }
+        .stCaption, [data-testid="stCaptionContainer"] { color:#64748b !important; }
+        div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"] {
+            border-color:#dbe3ef !important;
+            background:#fff;
+            box-shadow:0 10px 30px rgba(15,23,42,.05);
+            overflow:hidden !important;
+        }
+        div.stButton > button { width:100%; border-radius:.85rem; min-height:2.7rem; font-weight:750; }
+        div[data-testid="stPlotlyChart"], div[data-testid="stPlotlyChart"] > div, .js-plotly-plot, .plot-container, .svg-container {
+            width:100% !important;
+            max-width:100% !important;
+            overflow:hidden !important;
+        }
+        @media (max-width: 850px) {
+            .filter-row, .mini-grid, .feature-grid { grid-template-columns:1fr; }
+            .demo-chart { height:200px; grid-template-columns:repeat(20, 1fr); }
+            .demo-chart .candle:nth-child(n+21) { display:none; }
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-# ----------------------------- persistence -----------------------------
+# =============================================================================
+# Persistence and watchlist helpers
+# =============================================================================
 def load_watchlists():
     if WATCHLIST_FILE.exists():
         try:
@@ -92,7 +228,9 @@ def move_symbol(active_watchlist, symbol, direction):
         st.session_state.watchlists[active_watchlist] = symbols
         save_watchlists(st.session_state.watchlists)
 
-# ----------------------------- data + indicators -----------------------------
+# =============================================================================
+# Data and indicators
+# =============================================================================
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_stock_history(symbol, interval):
     df = yf.Ticker(symbol).history(period="max", interval=interval)
@@ -162,11 +300,9 @@ def interval_for_filter_timeframe(timeframe):
 
 
 def evaluate_filter_rule(symbol, rule, chart_df, filter_timeframe):
-    """Evaluate one stock filter rule and return (passed, detail_text)."""
     if chart_df.empty:
         return False, "no chart data"
 
-    # Explicit weekly filters always use weekly data.
     if rule.startswith("Weekly MACD"):
         df = fetch_stock_history(symbol, "1wk")
         macd_value, signal_value = latest_macd_values(df)
@@ -175,7 +311,6 @@ def evaluate_filter_rule(symbol, rule, chart_df, filter_timeframe):
         detail = f"weekly MACD {macd_value if macd_value is not None else 'n/a'} {operator} signal {signal_value if signal_value is not None else 'n/a'}"
         return passed, detail
 
-    # Other filters use the selected filter timeframe, not the visual chart interval.
     df = fetch_stock_history(symbol, interval_for_filter_timeframe(filter_timeframe))
     if df.empty:
         return False, f"no {filter_timeframe.lower()} data"
@@ -218,7 +353,9 @@ def overlay_label(settings, show_volume, show_rsi, show_macd):
         items.append("MACD")
     return " · ".join(items) if items else "No overlays"
 
-# ----------------------------- chart -----------------------------
+# =============================================================================
+# Chart
+# =============================================================================
 def add_sma(fig, full_df, display_df, start_date, period, color):
     if len(full_df) < period:
         return
@@ -292,7 +429,17 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
     price_range = [price_min - price_pad, price_max + price_pad]
     volume_range = [0, float(display_df["volume"].max())] if show_volume else [0, 1]
 
-    fig.update_layout(title_text="", template="plotly_white", autosize=True, height=total_height, margin=dict(l=44, r=44, t=0, b=0), paper_bgcolor="#fff", plot_bgcolor="#f8fafc", dragmode=False, hovermode=False, showlegend=False, font=dict(size=10, family="Arial, sans-serif", color="#0f172a"), xaxis=dict(title_text="", rangeslider=dict(visible=False), fixedrange=True, showticklabels=False, ticks="", showgrid=False, zeroline=False), yaxis=dict(title_text="", fixedrange=True, side="right", range=price_range, tickformat=".2f", nticks=5, automargin=True, tickfont=axis_font, showgrid=True, gridcolor="#e2e8f0", zeroline=False, domain=domains["price"]), yaxis2=dict(title_text="", fixedrange=True, side="right", range=volume_range, domain=domains.get("volume", [0, 0]), visible=show_volume, showticklabels=show_volume, tickfont=axis_font, nticks=2, ticks="", automargin=True, showgrid=False, zeroline=False), yaxis5=dict(title_text="", overlaying="y", side="left", fixedrange=True, range=price_range, showticklabels=True, tickformat=".2f", nticks=5, ticks="", automargin=True, tickfont=axis_font, showgrid=False, zeroline=False), yaxis6=dict(title_text="", overlaying="y2", side="left", fixedrange=True, range=volume_range, visible=show_volume, showticklabels=show_volume, nticks=2, ticks="", automargin=True, tickfont=axis_font, showgrid=False, zeroline=False))
+    fig.update_layout(
+        title_text="", template="plotly_white", autosize=True, height=total_height,
+        margin=dict(l=44, r=44, t=0, b=0), paper_bgcolor="#fff", plot_bgcolor="#f8fafc",
+        dragmode=False, hovermode=False, showlegend=False,
+        font=dict(size=10, family="Arial, sans-serif", color="#0f172a"),
+        xaxis=dict(title_text="", rangeslider=dict(visible=False), fixedrange=True, showticklabels=False, ticks="", showgrid=False, zeroline=False),
+        yaxis=dict(title_text="", fixedrange=True, side="right", range=price_range, tickformat=".2f", nticks=5, automargin=True, tickfont=axis_font, showgrid=True, gridcolor="#e2e8f0", zeroline=False, domain=domains["price"]),
+        yaxis2=dict(title_text="", fixedrange=True, side="right", range=volume_range, domain=domains.get("volume", [0, 0]), visible=show_volume, showticklabels=show_volume, tickfont=axis_font, nticks=2, ticks="", automargin=True, showgrid=False, zeroline=False),
+        yaxis5=dict(title_text="", overlaying="y", side="left", fixedrange=True, range=price_range, showticklabels=True, tickformat=".2f", nticks=5, ticks="", automargin=True, tickfont=axis_font, showgrid=False, zeroline=False),
+        yaxis6=dict(title_text="", overlaying="y2", side="left", fixedrange=True, range=volume_range, visible=show_volume, showticklabels=show_volume, nticks=2, ticks="", automargin=True, tickfont=axis_font, showgrid=False, zeroline=False),
+    )
     fig.add_trace(go.Scatter(x=display_df["display_index"], y=display_df["close"], yaxis="y5", mode="lines", line=dict(width=0), opacity=0, showlegend=False, hoverinfo="skip", name=""))
     if show_volume:
         fig.add_trace(go.Scatter(x=display_df["display_index"], y=display_df["volume"], yaxis="y6", mode="lines", line=dict(width=0), opacity=0, showlegend=False, hoverinfo="skip", name=""))
@@ -322,33 +469,149 @@ def price_summary(df):
     pct = ((latest["close"] - previous["close"]) / previous["close"] * 100) if previous["close"] else 0
     return f"${latest['close']:.2f}", f"{pct:+.2f}%"
 
-# ----------------------------- app state -----------------------------
+# =============================================================================
+# Pages
+# =============================================================================
+def show_landing_page():
+    st.markdown(
+        """
+        <div class="hero-card">
+          <div class="eyebrow">Stock screener landing page</div>
+          <div class="hero-title">Find stronger setups before the market moves.</div>
+          <p class="hero-copy">Screen watchlists by price action, moving averages, Bollinger Bands, volume, RSI, and MACD. Built for fast signal filtering without losing sight of the chart.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.write("")
+    c1, c2 = st.columns([0.9, 1.1])
+    with c1:
+        if st.button("Start screening", type="primary"):
+            st.session_state.page = "Stock Screener"
+            st.rerun()
+        st.markdown("""
+        ### Why use this screener?
+        - Multi-timeframe filters for price, SMA, and MACD conditions.
+        - CSV watchlist uploads for faster setup.
+        - Compact charts with optional Volume, RSI, and MACD panels.
+        - Filter diagnostics so you can verify why a ticker passed or failed.
+        """)
+    with c2:
+        candles = "".join([
+            f'<span class="candle {"red" if i % 5 in [1, 4] else ""}" style="height:{h}%"></span>'
+            for i, h in enumerate([42,54,47,58,38,62,68,44,71,76,56,79,84,63,80,88,69,91,96,78,93,86,73,82,89,74])
+        ])
+        st.markdown(f"""
+        <div class="mock-screen">
+            <div class="mock-top"><div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><strong>Screener preview</strong></div>
+            <div class="mock-body">
+                <div class="filter-row">
+                    <div class="filter-pill">Last Price &gt; SMA20</div>
+                    <div class="filter-pill">Weekly MACD &gt; Signal</div>
+                    <div class="filter-pill">Volume enabled</div>
+                </div>
+                <div class="demo-chart">{candles}</div>
+                <div class="mini-grid">
+                    <div class="mini-card"><small>SMA20</small><strong>Above</strong></div>
+                    <div class="mini-card"><small>MACD</small><strong>Bullish cross</strong></div>
+                    <div class="mini-card"><small>RSI</small><strong>62.4</strong></div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    st.write("")
+    st.markdown("""
+    <div class="feature-grid">
+        <div class="feature-card"><h3>Technical filters</h3><p>Filter by price versus SMA20, SMA50, SMA100, SMA200, MACD signal crossovers, and weekly momentum rules.</p></div>
+        <div class="feature-card"><h3>Watchlist-first design</h3><p>Create, rename, delete, reorder, and upload CSV watchlists directly from the sidebar.</p></div>
+        <div class="feature-card"><h3>Mobile-friendly charts</h3><p>Charts use indexed candles, fixed interaction, hidden x-axis labels, and separate lower indicator panels.</p></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def show_screener_page():
+    settings = {"SMA20": show_sma20, "SMA50": show_sma50, "SMA100": show_sma100, "SMA200": show_sma200, "Bollinger Bands": show_bbands}
+    active = st.session_state.active_watchlist
+    symbols = st.session_state.watchlists.get(active, [])
+    st.subheader(active)
+    st.caption(f"{len(symbols)} stock(s) in this watchlist")
+    if selected_filters:
+        st.caption("Active filters: " + "; ".join(selected_filters) + f" · Timeframe: {filter_timeframe} · Mode: {filter_match_mode}")
+
+    if not symbols:
+        st.info("This watchlist is empty. Add a ticker in the sidebar to show its candlestick chart.")
+        return
+
+    shown_count = 0
+    diagnostics = []
+    for i, symbol in enumerate(symbols):
+        with st.spinner(f"Loading {symbol} from yfinance..."):
+            full_df = fetch_stock_history(symbol, interval)
+        if full_df.empty:
+            diagnostics.append({"Symbol": symbol, "Shown": False, "Reason": "No chart data"})
+            continue
+        passes_filter, filter_details = evaluate_stock_filters(symbol, full_df, selected_filters, filter_match_mode, filter_timeframe)
+        diagnostics.append({"Symbol": symbol, "Shown": passes_filter, "Reason": "; ".join(detail for _, detail in filter_details) if filter_details else "No filters"})
+        if not passes_filter:
+            continue
+        shown_count += 1
+        display_df = visible_candles(full_df, max_points)
+        price, pct = price_summary(display_df)
+        with st.container(border=True):
+            st.markdown(f"""
+            <div class="stock-head">
+              <div><div class="stock-title">{i + 1}. {symbol}</div><div class="stock-sub">{len(display_df)} indexed candles · no x-axis labels</div></div>
+              <div class="price-pill">{price} · {pct}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown(f'<div class="indicator-row">{overlay_label(settings, show_volume, show_rsi, show_macd)}</div>', unsafe_allow_html=True)
+            with st.expander(f"Manage {symbol}", expanded=False):
+                if st.button("↑ Move up", key=f"up-{active}-{symbol}", disabled=i == 0):
+                    move_symbol(active, symbol, -1)
+                    st.rerun()
+                if st.button("↓ Move down", key=f"down-{active}-{symbol}", disabled=i == len(symbols) - 1):
+                    move_symbol(active, symbol, 1)
+                    st.rerun()
+                if st.button("Remove from watchlist", key=f"remove-{active}-{symbol}"):
+                    st.session_state.watchlists[active] = [item for item in symbols if item != symbol]
+                    save_watchlists(st.session_state.watchlists)
+                    st.rerun()
+            if len(full_df) < 200 and show_sma200:
+                st.caption(f"{symbol}: SMA 200 needs at least 200 data points. Available: {len(full_df)}.")
+            if len(full_df) < 35 and show_macd:
+                st.caption(f"{symbol}: MACD needs at least 35 data points. Available: {len(full_df)}.")
+            fig = make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, price_height)
+            st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
+
+    if selected_filters and shown_count == 0:
+        st.warning("No stocks matched the selected filters. Try changing the filter timeframe, match mode, or selected rules.")
+    if show_filter_diagnostics and diagnostics:
+        with st.expander("Filter diagnostics", expanded=True):
+            st.dataframe(pd.DataFrame(diagnostics), use_container_width=True)
+
+# =============================================================================
+# App state and sidebar navigation
+# =============================================================================
 if "watchlists" not in st.session_state:
     st.session_state.watchlists = load_watchlists()
 if "active_watchlist" not in st.session_state:
     st.session_state.active_watchlist = next(iter(st.session_state.watchlists.keys()))
-
-# ----------------------------- header -----------------------------
-st.markdown("""
-<div class="hero-card">
-  <div class="eyebrow">Market intelligence dashboard</div>
-  <h1 class="hero-title">Professional Stock Watchlist Monitor</h1>
-  <p class="hero-subtitle">Build watchlists, filter signals, reorder stocks, and review compact candlestick charts designed for desktop, tablet, and mobile screens.</p>
-</div>
-""", unsafe_allow_html=True)
-st.write("")
+if "page" not in st.session_state:
+    st.session_state.page = "Landing"
 
 names = list(st.session_state.watchlists.keys())
 if st.session_state.active_watchlist not in names and names:
     st.session_state.active_watchlist = names[0]
 
-# ----------------------------- sidebar -----------------------------
 with st.sidebar:
+    st.header("Navigation")
+    st.session_state.page = st.radio("Go to", ["Landing", "Stock Screener"], index=["Landing", "Stock Screener"].index(st.session_state.page), label_visibility="collapsed")
+
+    st.divider()
     st.header("Watchlist")
     st.caption("Create, select, rename, and manage your ticker lists.")
     st.markdown('<div class="section-label">Active watchlist</div>', unsafe_allow_html=True)
     st.session_state.active_watchlist = st.selectbox("Active watchlist", names, index=names.index(st.session_state.active_watchlist), label_visibility="collapsed")
-
     st.markdown('<div class="section-label">Add stock ticker</div>', unsafe_allow_html=True)
     with st.form("add_symbol_form", clear_on_submit=True):
         symbol_input = st.text_input("Ticker symbol", placeholder="AAPL, TSLA, BHP.AX, CBA.AX, BTC-USD", label_visibility="collapsed")
@@ -363,6 +626,7 @@ with st.sidebar:
         else:
             st.session_state.watchlists[active].append(symbol)
             save_watchlists(st.session_state.watchlists)
+            st.session_state.page = "Stock Screener"
             st.rerun()
 
     st.markdown('<div class="section-label">Create watchlist from CSV</div>', unsafe_allow_html=True)
@@ -386,6 +650,7 @@ with st.sidebar:
                 st.session_state.watchlists[name] = csv_symbols
                 st.session_state.active_watchlist = name
                 save_watchlists(st.session_state.watchlists)
+                st.session_state.page = "Stock Screener"
                 st.success(f"Created {name} with {len(csv_symbols)} symbol(s).")
                 st.rerun()
 
@@ -401,6 +666,7 @@ with st.sidebar:
                 st.session_state.watchlists[name] = []
                 st.session_state.active_watchlist = name
                 save_watchlists(st.session_state.watchlists)
+                st.session_state.page = "Stock Screener"
                 st.rerun()
         rename_name = st.text_input("Rename selected watchlist", value=st.session_state.active_watchlist)
         if st.button("Rename selected watchlist"):
@@ -423,9 +689,7 @@ with st.sidebar:
 
     st.divider()
     st.header("Chart settings")
-    st.caption("Visible candles control the displayed recent range; indicators still use full history.")
     interval = st.selectbox("Chart interval", ["1d", "1wk", "1mo"], index=0)
-    st.caption("Chart uses flexible width and a fixed 250 px main candlestick height.")
     price_height = 250
     max_points = st.select_slider("Visible recent candles", options=[20, 30, 45, 60, 75, 90, 120, 180], value=60)
 
@@ -441,21 +705,11 @@ with st.sidebar:
 
     st.divider()
     st.header("Stock filters")
-    st.caption("Filters use the timeframe below, or explicit weekly rules where stated.")
     filter_timeframe = st.selectbox("Filter timeframe", ["Daily", "Weekly", "Monthly"], index=0)
     filter_options = [
-        "Last Price > SMA20",
-        "Last Price > SMA50",
-        "Last Price > SMA100",
-        "Last Price > SMA200",
-        "Last Price < SMA20",
-        "Last Price < SMA50",
-        "Last Price < SMA100",
-        "Last Price < SMA200",
-        "MACD > Signal",
-        "MACD < Signal",
-        "Weekly MACD > Weekly Signal",
-        "Weekly MACD < Weekly Signal",
+        "Last Price > SMA20", "Last Price > SMA50", "Last Price > SMA100", "Last Price > SMA200",
+        "Last Price < SMA20", "Last Price < SMA50", "Last Price < SMA100", "Last Price < SMA200",
+        "MACD > Signal", "MACD < Signal", "Weekly MACD > Weekly Signal", "Weekly MACD < Weekly Signal",
     ]
     selected_filters = st.multiselect("Show stocks where", filter_options)
     filter_match_mode = st.radio("Filter match mode", ["All selected filters", "Any selected filter"], disabled=not selected_filters)
@@ -465,72 +719,12 @@ with st.sidebar:
         fetch_stock_history.clear()
         st.rerun()
 
-settings = {"SMA20": show_sma20, "SMA50": show_sma50, "SMA100": show_sma100, "SMA200": show_sma200, "Bollinger Bands": show_bbands}
-
-# ----------------------------- main -----------------------------
-st.divider()
-active = st.session_state.active_watchlist
-symbols = st.session_state.watchlists.get(active, [])
-st.subheader(active)
-st.caption(f"{len(symbols)} stock(s) in this watchlist")
-if selected_filters:
-    st.caption("Active filters: " + "; ".join(selected_filters) + f" · Timeframe: {filter_timeframe} · Mode: {filter_match_mode}")
-
-if not symbols:
-    st.info("This watchlist is empty. Add a ticker above to show its candlestick chart.")
+# =============================================================================
+# Render selected page
+# =============================================================================
+if st.session_state.page == "Landing":
+    show_landing_page()
 else:
-    shown_count = 0
-    diagnostics = []
-    for i, symbol in enumerate(symbols):
-        with st.spinner(f"Loading {symbol} from yfinance..."):
-            full_df = fetch_stock_history(symbol, interval)
-        if full_df.empty:
-            diagnostics.append({"Symbol": symbol, "Shown": False, "Reason": "No chart data"})
-            continue
-
-        passes_filter, filter_details = evaluate_stock_filters(symbol, full_df, selected_filters, filter_match_mode, filter_timeframe)
-        diagnostics.append({
-            "Symbol": symbol,
-            "Shown": passes_filter,
-            "Reason": "; ".join(detail for _, detail in filter_details) if filter_details else "No filters",
-        })
-        if not passes_filter:
-            continue
-
-        shown_count += 1
-        display_df = visible_candles(full_df, max_points)
-        price, pct = price_summary(display_df)
-        with st.container(border=True):
-            st.markdown(f"""
-<div class="stock-head">
-  <div><div class="stock-title">{i + 1}. {symbol}</div><div class="stock-sub">{len(display_df)} indexed candles · no x-axis labels</div></div>
-  <div class="price-pill">{price} · {pct}</div>
-</div>
-""", unsafe_allow_html=True)
-            st.markdown(f'<div class="indicator-row">{overlay_label(settings, show_volume, show_rsi, show_macd)}</div>', unsafe_allow_html=True)
-            with st.expander(f"Manage {symbol}", expanded=False):
-                if st.button("↑ Move up", key=f"up-{active}-{symbol}", disabled=i == 0):
-                    move_symbol(active, symbol, -1)
-                    st.rerun()
-                if st.button("↓ Move down", key=f"down-{active}-{symbol}", disabled=i == len(symbols) - 1):
-                    move_symbol(active, symbol, 1)
-                    st.rerun()
-                if st.button("Remove from watchlist", key=f"remove-{active}-{symbol}"):
-                    st.session_state.watchlists[active] = [item for item in symbols if item != symbol]
-                    save_watchlists(st.session_state.watchlists)
-                    st.rerun()
-            if len(full_df) < 200 and show_sma200:
-                st.caption(f"{symbol}: SMA 200 needs at least 200 data points. Available: {len(full_df)}.")
-            if len(full_df) < 35 and show_macd:
-                st.caption(f"{symbol}: MACD needs at least 35 data points. Available: {len(full_df)}.")
-            fig = make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, price_height)
-            st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
-
-    if selected_filters and shown_count == 0:
-        st.warning("No stocks matched the selected filters. Try changing the filter timeframe, match mode, or selected rules.")
-
-    if show_filter_diagnostics and diagnostics:
-        with st.expander("Filter diagnostics", expanded=True):
-            st.dataframe(pd.DataFrame(diagnostics), use_container_width=True)
+    show_screener_page()
 
 st.caption("Data is provided through yfinance/Yahoo Finance. This dashboard is for educational and informational use only, not financial advice.")
