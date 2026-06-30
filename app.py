@@ -696,6 +696,18 @@ if st.session_state.active_watchlist not in names and names:
 with st.sidebar:
     st.header("Watchlist")
     st.caption("Create, select, rename, and manage your ticker lists.")
+
+    st.markdown('<div class="section-label">Export watchlists</div>', unsafe_allow_html=True)
+    watchlists_json_data = json.dumps(st.session_state.watchlists, indent=2).encode("utf-8")
+    if st.button("Save all watchlists to watchlists.json"):
+        save_watchlists(st.session_state.watchlists)
+        st.success("Saved all watchlists to watchlists.json.")
+    st.download_button(
+        "Download watchlists.json",
+        data=watchlists_json_data,
+        file_name="watchlists.json",
+        mime="application/json",
+    )
     st.markdown('<div class="section-label">Active watchlist</div>', unsafe_allow_html=True)
     st.session_state.active_watchlist = st.selectbox("Active watchlist", names, index=names.index(st.session_state.active_watchlist), label_visibility="collapsed")
     st.markdown('<div class="section-label">Add stock ticker</div>', unsafe_allow_html=True)
