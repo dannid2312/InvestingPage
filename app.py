@@ -234,6 +234,21 @@ def macd_status(df):
         return "N/A"
     return "Bullish" if macd_value > signal_value else "Bearish"
 
+def rsi_status(df, period=14):
+    if df.empty or len(df) < period:
+        return "N/A"
+    rsi_value = rsi(df["close"], period).iloc[-1]
+    if pd.isna(rsi_value):
+        return "N/A"
+    rsi_value = float(rsi_value)
+    if rsi_value > 70:
+        return "Overbought"
+    if rsi_value >= 50:
+        return "Bullish"
+    if rsi_value >= 30:
+        return "Weak"
+    return "Oversold"
+
 
 def price_above_sma_status(df, period):
     if df.empty:
@@ -243,6 +258,15 @@ def price_above_sma_status(df, period):
         return "N/A"
     latest_close = float(df["close"].iloc[-1])
     return "Yes" if latest_close > sma_value else "No"
+
+def volume_above_avg_status(df, period=20):
+    if df.empty or len(df) < period:
+        return "N/A"
+    avg_volume = df["volume"].rolling(period).mean().iloc[-1]
+    if pd.isna(avg_volume):
+        return "N/A"
+    latest_volume = float(df["volume"].iloc[-1])
+    return "Yes" if latest_volume > float(avg_volume) else "No"
 
 
 def compare_values(left, operator, right):
@@ -317,6 +341,9 @@ def screener_summary_row(symbol):
         "MonthlyMACD": macd_status(monthly),
         "WeeklyMACD": macd_status(weekly),
         "DailyMACD": macd_status(daily),
+        "MonthlyRSI": rsi_status(monthly),
+        "WeeklyRSI": rsi_status(weekly),
+        "DailyRSI": rsi_status(daily),
     }
 
     for timeframe_name, df in [
@@ -326,6 +353,9 @@ def screener_summary_row(symbol):
     ]:
         for period in [20, 50, 100, 200]:
             row[f"Price>{timeframe_name}SMA{period}"] = price_above_sma_status(df, period)
+
+    row["Volume>DailyAvg20"] = volume_above_avg_status(daily, 20)
+    row["Volume>WeeklyAvg20"] = volume_above_avg_status(weekly, 20)
 
     return row
 
@@ -343,8 +373,12 @@ def style_screener_table(df):
     def color_cells(value):
         if value == "Bullish" or value == "Yes":
             return "background-color: #dcfce7; color: #166534; font-weight: 800;"
-        if value == "Bearish" or value == "No":
+        if value == "Bearish" or value == "No" or value == "Weak":
             return "background-color: #fee2e2; color: #991b1b; font-weight: 800;"
+        if value == "Overbought":
+            return "background-color: #fef3c7; color: #92400e; font-weight: 800;"
+        if value == "Oversold":
+            return "background-color: #dbeafe; color: #1e40af; font-weight: 800;"
         if value == "N/A":
             return "background-color: #f1f5f9; color: #64748b; font-weight: 700;"
         return ""
@@ -506,7 +540,7 @@ def show_landing_page():
         <div class="hero-card">
           <div class="eyebrow">Stock screener landing page</div>
           <div class="hero-title">Upload a ticker CSV and screen market structure quickly.</div>
-          <p class="hero-copy">Create a summary table with Monthly, Weekly, and Daily MACD plus price versus SMA20, SMA50, SMA100, and SMA200 across Daily, Weekly, and Monthly timeframes.</p>
+          <p class="hero-copy">Create a summary table with Monthly, Weekly, and Daily MACD/RSI status plus price versus SMA20, SMA50, SMA100, and SMA200 across Daily, Weekly, and Monthly timeframes.</p>
         </div>
         """,
         unsafe_allow_html=True,
