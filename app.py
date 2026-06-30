@@ -14,6 +14,7 @@ DEFAULT_WATCHLISTS = {
     "Mega Cap Tech": ["AAPL", "GOOGL", "AMZN"],
     "ASX Watchlist": ["BHP.AX", "CBA.AX", "WES.AX"],
 }
+
 PLOT_CONFIG = {"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "showTips": False, "staticPlot": True, "responsive": True}
 
 st.markdown("""
@@ -42,7 +43,7 @@ div[data-testid="stPlotlyChart"], div[data-testid="stPlotlyChart"] > div, .js-pl
 </style>
 """, unsafe_allow_html=True)
 
-
+# ----------------------------- persistence -----------------------------
 def load_watchlists():
     if WATCHLIST_FILE.exists():
         try:
@@ -63,12 +64,6 @@ def normalize_symbol(symbol):
 
 
 def symbols_from_uploaded_csv(uploaded_file):
-    """Extract ticker symbols from CSV.
-
-    Supported layouts:
-    - Preferred column names: symbol, ticker, tickers, stock, stocks, code
-    - Otherwise, the first column is used
-    """
     try:
         df = pd.read_csv(uploaded_file)
     except Exception:
@@ -97,7 +92,7 @@ def move_symbol(active_watchlist, symbol, direction):
         st.session_state.watchlists[active_watchlist] = symbols
         save_watchlists(st.session_state.watchlists)
 
-
+# ----------------------------- data + indicators -----------------------------
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_stock_history(symbol, interval):
     df = yf.Ticker(symbol).history(period="max", interval=interval)
@@ -137,8 +132,8 @@ def macd(close, fast=12, slow=26, signal=9):
     histogram = macd_line - signal_line
     return macd_line, signal_line, histogram
 
+
 def latest_sma_value(df, period):
-    """Return the latest SMA value, or None if there is not enough data."""
     if df.empty or len(df) < period:
         return None
     value = df["close"].rolling(period).mean().iloc[-1]
@@ -146,7 +141,6 @@ def latest_sma_value(df, period):
 
 
 def latest_macd_values(df):
-    """Return latest MACD and signal values, or (None, None) if unavailable."""
     if df.empty or len(df) < 35:
         return None, None
     macd_line, signal_line, _ = macd(df["close"])
@@ -157,71 +151,61 @@ def latest_macd_values(df):
     return float(latest_macd), float(latest_signal)
 
 
-def evaluate_filter_rule(symbol, rule, full_df):
-    """Evaluate one stock filter rule.
-
-    Daily rules use the currently selected chart interval data.
-    Weekly MACD rules fetch weekly data separately so the condition is truly weekly.
-    """
-    if full_df.empty:
+def compare_values(left, operator, right):
+    if left is None or right is None:
         return False
-
-    latest_close = float(full_df["close"].iloc[-1])
-
-    if rule == "Last Price > SMA20":
-        sma_value = latest_sma_value(full_df, 20)
-        return sma_value is not None and latest_close > sma_value
-    if rule == "Last Price > SMA50":
-        sma_value = latest_sma_value(full_df, 50)
-        return sma_value is not None and latest_close > sma_value
-    if rule == "Last Price > SMA100":
-        sma_value = latest_sma_value(full_df, 100)
-        return sma_value is not None and latest_close > sma_value
-    if rule == "Last Price > SMA200":
-        sma_value = latest_sma_value(full_df, 200)
-        return sma_value is not None and latest_close > sma_value
-
-    if rule == "Last Price < SMA20":
-        sma_value = latest_sma_value(full_df, 20)
-        return sma_value is not None and latest_close < sma_value
-    if rule == "Last Price < SMA50":
-        sma_value = latest_sma_value(full_df, 50)
-        return sma_value is not None and latest_close < sma_value
-    if rule == "Last Price < SMA100":
-        sma_value = latest_sma_value(full_df, 100)
-        return sma_value is not None and latest_close < sma_value
-    if rule == "Last Price < SMA200":
-        sma_value = latest_sma_value(full_df, 200)
-        return sma_value is not None and latest_close < sma_value
-
-    if rule == "MACD > Signal":
-        macd_value, signal_value = latest_macd_values(full_df)
-        return macd_value is not None and signal_value is not None and macd_value > signal_value
-    if rule == "MACD < Signal":
-        macd_value, signal_value = latest_macd_values(full_df)
-        return macd_value is not None and signal_value is not None and macd_value < signal_value
-
-    if rule == "Weekly MACD > Weekly Signal":
-        weekly_df = fetch_stock_history(symbol, "1wk")
-        macd_value, signal_value = latest_macd_values(weekly_df)
-        return macd_value is not None and signal_value is not None and macd_value > signal_value
-    if rule == "Weekly MACD < Weekly Signal":
-        weekly_df = fetch_stock_history(symbol, "1wk")
-        macd_value, signal_value = latest_macd_values(weekly_df)
-        return macd_value is not None and signal_value is not None and macd_value < signal_value
-
-    return True
+    return left > right if operator == ">" else left < right
 
 
-def stock_passes_filters(symbol, full_df, selected_filters, filter_match_mode):
-    """Return True if the stock satisfies the selected filters."""
+def interval_for_filter_timeframe(timeframe):
+    return {"Daily": "1d", "Weekly": "1wk", "Monthly": "1mo"}[timeframe]
+
+
+def evaluate_filter_rule(symbol, rule, chart_df, filter_timeframe):
+    """Evaluate one stock filter rule and return (passed, detail_text)."""
+    if chart_df.empty:
+        return False, "no chart data"
+
+    # Explicit weekly filters always use weekly data.
+    if rule.startswith("Weekly MACD"):
+        df = fetch_stock_history(symbol, "1wk")
+        macd_value, signal_value = latest_macd_values(df)
+        operator = ">" if ">" in rule else "<"
+        passed = compare_values(macd_value, operator, signal_value)
+        detail = f"weekly MACD {macd_value if macd_value is not None else 'n/a'} {operator} signal {signal_value if signal_value is not None else 'n/a'}"
+        return passed, detail
+
+    # Other filters use the selected filter timeframe, not the visual chart interval.
+    df = fetch_stock_history(symbol, interval_for_filter_timeframe(filter_timeframe))
+    if df.empty:
+        return False, f"no {filter_timeframe.lower()} data"
+    latest_close = float(df["close"].iloc[-1])
+
+    if "SMA" in rule:
+        period = int(rule.split("SMA")[-1])
+        operator = ">" if ">" in rule else "<"
+        sma_value = latest_sma_value(df, period)
+        passed = compare_values(latest_close, operator, sma_value)
+        detail = f"{filter_timeframe} close {latest_close:.2f} {operator} SMA{period} {sma_value:.2f}" if sma_value is not None else f"SMA{period} unavailable"
+        return passed, detail
+
+    if rule == "MACD > Signal" or rule == "MACD < Signal":
+        macd_value, signal_value = latest_macd_values(df)
+        operator = ">" if ">" in rule else "<"
+        passed = compare_values(macd_value, operator, signal_value)
+        detail = f"{filter_timeframe} MACD {macd_value if macd_value is not None else 'n/a'} {operator} signal {signal_value if signal_value is not None else 'n/a'}"
+        return passed, detail
+
+    return True, "no filter"
+
+
+def evaluate_stock_filters(symbol, chart_df, selected_filters, filter_match_mode, filter_timeframe):
     if not selected_filters:
-        return True
-
-    results = [evaluate_filter_rule(symbol, rule, full_df) for rule in selected_filters]
-    if filter_match_mode == "Any selected filter":
-        return any(results)
-    return all(results)
+        return True, []
+    evaluations = [evaluate_filter_rule(symbol, rule, chart_df, filter_timeframe) for rule in selected_filters]
+    results = [passed for passed, _ in evaluations]
+    passed = any(results) if filter_match_mode == "Any selected filter" else all(results)
+    return passed, evaluations
 
 
 def overlay_label(settings, show_volume, show_rsi, show_macd):
@@ -234,7 +218,7 @@ def overlay_label(settings, show_volume, show_rsi, show_macd):
         items.append("MACD")
     return " · ".join(items) if items else "No overlays"
 
-
+# ----------------------------- chart -----------------------------
 def add_sma(fig, full_df, display_df, start_date, period, color):
     if len(full_df) < period:
         return
@@ -338,17 +322,18 @@ def price_summary(df):
     pct = ((latest["close"] - previous["close"]) / previous["close"] * 100) if previous["close"] else 0
     return f"${latest['close']:.2f}", f"{pct:+.2f}%"
 
-
+# ----------------------------- app state -----------------------------
 if "watchlists" not in st.session_state:
     st.session_state.watchlists = load_watchlists()
 if "active_watchlist" not in st.session_state:
     st.session_state.active_watchlist = next(iter(st.session_state.watchlists.keys()))
 
+# ----------------------------- header -----------------------------
 st.markdown("""
 <div class="hero-card">
   <div class="eyebrow">Market intelligence dashboard</div>
   <h1 class="hero-title">Professional Stock Watchlist Monitor</h1>
-  <p class="hero-subtitle">Build watchlists, reorder stocks, and review compact candlestick charts designed for desktop, tablet, and mobile screens.</p>
+  <p class="hero-subtitle">Build watchlists, filter signals, reorder stocks, and review compact candlestick charts designed for desktop, tablet, and mobile screens.</p>
 </div>
 """, unsafe_allow_html=True)
 st.write("")
@@ -357,11 +342,13 @@ names = list(st.session_state.watchlists.keys())
 if st.session_state.active_watchlist not in names and names:
     st.session_state.active_watchlist = names[0]
 
+# ----------------------------- sidebar -----------------------------
 with st.sidebar:
     st.header("Watchlist")
     st.caption("Create, select, rename, and manage your ticker lists.")
     st.markdown('<div class="section-label">Active watchlist</div>', unsafe_allow_html=True)
     st.session_state.active_watchlist = st.selectbox("Active watchlist", names, index=names.index(st.session_state.active_watchlist), label_visibility="collapsed")
+
     st.markdown('<div class="section-label">Add stock ticker</div>', unsafe_allow_html=True)
     with st.form("add_symbol_form", clear_on_submit=True):
         symbol_input = st.text_input("Ticker symbol", placeholder="AAPL, TSLA, BHP.AX, CBA.AX, BTC-USD", label_visibility="collapsed")
@@ -437,10 +424,11 @@ with st.sidebar:
     st.divider()
     st.header("Chart settings")
     st.caption("Visible candles control the displayed recent range; indicators still use full history.")
-    interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
+    interval = st.selectbox("Chart interval", ["1d", "1wk", "1mo"], index=0)
     st.caption("Chart uses flexible width and a fixed 250 px main candlestick height.")
     price_height = 250
     max_points = st.select_slider("Visible recent candles", options=[20, 30, 45, 60, 75, 90, 120, 180], value=60)
+
     st.markdown('<div class="section-label">Indicators</div>', unsafe_allow_html=True)
     show_sma20 = st.toggle("SMA 20", value=True)
     show_sma50 = st.toggle("SMA 50", value=False)
@@ -453,7 +441,8 @@ with st.sidebar:
 
     st.divider()
     st.header("Stock filters")
-    st.caption("Only charts matching these conditions will be shown.")
+    st.caption("Filters use the timeframe below, or explicit weekly rules where stated.")
+    filter_timeframe = st.selectbox("Filter timeframe", ["Daily", "Weekly", "Monthly"], index=0)
     filter_options = [
         "Last Price > SMA20",
         "Last Price > SMA50",
@@ -469,12 +458,8 @@ with st.sidebar:
         "Weekly MACD < Weekly Signal",
     ]
     selected_filters = st.multiselect("Show stocks where", filter_options)
-    filter_match_mode = st.radio(
-        "Filter match mode",
-        ["All selected filters", "Any selected filter"],
-        horizontal=False,
-        disabled=not selected_filters,
-    )
+    filter_match_mode = st.radio("Filter match mode", ["All selected filters", "Any selected filter"], disabled=not selected_filters)
+    show_filter_diagnostics = st.toggle("Show filter diagnostics", value=False)
 
     if st.button("Refresh market data"):
         fetch_stock_history.clear()
@@ -482,26 +467,40 @@ with st.sidebar:
 
 settings = {"SMA20": show_sma20, "SMA50": show_sma50, "SMA100": show_sma100, "SMA200": show_sma200, "Bollinger Bands": show_bbands}
 
+# ----------------------------- main -----------------------------
 st.divider()
 active = st.session_state.active_watchlist
 symbols = st.session_state.watchlists.get(active, [])
 st.subheader(active)
 st.caption(f"{len(symbols)} stock(s) in this watchlist")
 if selected_filters:
-    st.caption("Active filters: " + "; ".join(selected_filters) + f" · Mode: {filter_match_mode}")
+    st.caption("Active filters: " + "; ".join(selected_filters) + f" · Timeframe: {filter_timeframe} · Mode: {filter_match_mode}")
 
 if not symbols:
     st.info("This watchlist is empty. Add a ticker above to show its candlestick chart.")
 else:
+    shown_count = 0
+    diagnostics = []
     for i, symbol in enumerate(symbols):
+        with st.spinner(f"Loading {symbol} from yfinance..."):
+            full_df = fetch_stock_history(symbol, interval)
+        if full_df.empty:
+            diagnostics.append({"Symbol": symbol, "Shown": False, "Reason": "No chart data"})
+            continue
+
+        passes_filter, filter_details = evaluate_stock_filters(symbol, full_df, selected_filters, filter_match_mode, filter_timeframe)
+        diagnostics.append({
+            "Symbol": symbol,
+            "Shown": passes_filter,
+            "Reason": "; ".join(detail for _, detail in filter_details) if filter_details else "No filters",
+        })
+        if not passes_filter:
+            continue
+
+        shown_count += 1
+        display_df = visible_candles(full_df, max_points)
+        price, pct = price_summary(display_df)
         with st.container(border=True):
-            with st.spinner(f"Loading {symbol} from yfinance..."):
-                full_df = fetch_stock_history(symbol, interval)
-            if full_df.empty:
-                st.error(f"No data found for {symbol}. Check the ticker symbol or interval.")
-                continue
-            display_df = visible_candles(full_df, max_points)
-            price, pct = price_summary(display_df)
             st.markdown(f"""
 <div class="stock-head">
   <div><div class="stock-title">{i + 1}. {symbol}</div><div class="stock-sub">{len(display_df)} indexed candles · no x-axis labels</div></div>
@@ -526,5 +525,12 @@ else:
                 st.caption(f"{symbol}: MACD needs at least 35 data points. Available: {len(full_df)}.")
             fig = make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, price_height)
             st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
+
+    if selected_filters and shown_count == 0:
+        st.warning("No stocks matched the selected filters. Try changing the filter timeframe, match mode, or selected rules.")
+
+    if show_filter_diagnostics and diagnostics:
+        with st.expander("Filter diagnostics", expanded=True):
+            st.dataframe(pd.DataFrame(diagnostics), use_container_width=True)
 
 st.caption("Data is provided through yfinance/Yahoo Finance. This dashboard is for educational and informational use only, not financial advice.")
