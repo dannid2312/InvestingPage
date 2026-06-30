@@ -44,7 +44,7 @@ st.markdown(
                         linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #eff6ff 100%);
             color: #0f172a;
         }
-        .block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 1120px; }
+        .block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 1180px; }
         section[data-testid="stSidebar"] { background:#ffffff; border-right:1px solid #dbe3ef; }
         section[data-testid="stSidebar"] * { color:#0f172a; }
         .hero-card {
@@ -55,95 +55,21 @@ st.markdown(
             box-shadow: 0 18px 60px rgba(15,23,42,.08);
         }
         .eyebrow {
-            display:inline-flex;
-            align-items:center;
-            gap:8px;
-            color:#2563eb;
-            background:rgba(37,99,235,.08);
+            display:inline-flex; align-items:center; gap:8px;
+            color:#2563eb; background:rgba(37,99,235,.08);
             border:1px solid rgba(37,99,235,.18);
-            padding:8px 12px;
-            border-radius:999px;
-            font-size:.78rem;
-            font-weight:850;
-            letter-spacing:.08em;
-            text-transform:uppercase;
-            margin-bottom:16px;
+            padding:8px 12px; border-radius:999px;
+            font-size:.78rem; font-weight:850; letter-spacing:.08em;
+            text-transform:uppercase; margin-bottom:16px;
         }
         .hero-title {
-            color:#0f172a;
-            font-size:clamp(2.3rem, 7vw, 5rem);
-            line-height:.95;
-            letter-spacing:-.075em;
-            font-weight:900;
-            margin:0;
+            color:#0f172a; font-size:clamp(2.1rem, 7vw, 4.7rem);
+            line-height:.98; letter-spacing:-.065em; font-weight:900; margin:0;
         }
         .hero-copy {
-            color:#64748b;
-            max-width:680px;
-            font-size:clamp(1rem, 2vw, 1.16rem);
-            line-height:1.7;
-            margin:22px 0 0;
+            color:#64748b; max-width:760px; font-size:clamp(1rem, 2vw, 1.16rem);
+            line-height:1.7; margin:22px 0 0;
         }
-        .hero-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:28px; }
-        .primary-button, .secondary-button {
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            min-height:44px;
-            padding:0 18px;
-            border-radius:999px;
-            font-weight:850;
-            text-decoration:none;
-        }
-        .primary-button { color:white; background:#2563eb; box-shadow:0 18px 44px rgba(37,99,235,.24); }
-        .secondary-button { color:#0f172a; background:#fff; border:1px solid #dbe3ef; }
-        .mock-screen {
-            border:1px solid #dbe3ef;
-            border-radius:28px;
-            background:#fff;
-            box-shadow:0 24px 80px rgba(15,23,42,.10);
-            overflow:hidden;
-        }
-        .mock-top {
-            display:flex;
-            align-items:center;
-            justify-content:space-between;
-            padding:16px;
-            border-bottom:1px solid #dbe3ef;
-            background:linear-gradient(180deg, #fff, #f8fafc);
-        }
-        .dots { display:flex; gap:7px; }
-        .dot { width:10px; height:10px; border-radius:999px; background:#cbd5e1; }
-        .dot:nth-child(1){ background:#ef4444; }
-        .dot:nth-child(2){ background:#f59e0b; }
-        .dot:nth-child(3){ background:#22c55e; }
-        .mock-body { padding:16px; }
-        .filter-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:14px; }
-        .filter-pill {
-            padding:10px 12px;
-            border:1px solid #dbe3ef;
-            border-radius:14px;
-            background:#f8fafc;
-            color:#334155;
-            font-size:.78rem;
-            font-weight:800;
-        }
-        .demo-chart {
-            height:230px;
-            display:grid;
-            align-items:end;
-            grid-template-columns:repeat(26, 1fr);
-            gap:5px;
-            padding:10px 0 0;
-            border-top:1px solid #dbe3ef;
-            border-bottom:1px solid #dbe3ef;
-        }
-        .candle { position:relative; width:100%; border-radius:4px; background:#059669; min-height:36px; }
-        .candle.red { background:#dc2626; }
-        .mini-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-top:14px; }
-        .mini-card { padding:12px; border-radius:16px; border:1px solid #dbe3ef; background:#f8fafc; }
-        .mini-card small { color:#64748b; font-weight:700; }
-        .mini-card strong { display:block; margin-top:5px; }
         .feature-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-top:24px; }
         .feature-card { padding:22px; border-radius:24px; border:1px solid #dbe3ef; background:#fff; box-shadow:0 14px 40px rgba(15,23,42,.055); }
         .feature-card h3 { margin:0 0 8px; }
@@ -153,25 +79,19 @@ st.markdown(
         .stock-sub { color:#64748b; font-size:.82rem; }
         .price-pill { border:1px solid #dbe3ef; border-radius:999px; background:#f8fafc; padding:.36rem .62rem; color:#334155; font-size:.82rem; font-weight:750; white-space:nowrap; }
         .indicator-row { color:#475569; font-size:.78rem; line-height:1.45; margin:.15rem 0 .45rem 0; }
+        .section-label { color:#0f172a; font-weight:800; font-size:1.02rem; margin-top:.25rem; margin-bottom:.15rem; }
         h1,h2,h3,h4,h5,h6,p,label,span,div { color:#0f172a; }
         .stCaption, [data-testid="stCaptionContainer"] { color:#64748b !important; }
         div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"] {
-            border-color:#dbe3ef !important;
-            background:#fff;
-            box-shadow:0 10px 30px rgba(15,23,42,.05);
-            overflow:hidden !important;
+            border-color:#dbe3ef !important; background:#fff;
+            box-shadow:0 10px 30px rgba(15,23,42,.05); overflow:hidden !important;
         }
         div.stButton > button { width:100%; border-radius:.85rem; min-height:2.7rem; font-weight:750; }
-        div[data-testid="stPlotlyChart"], div[data-testid="stPlotlyChart"] > div, .js-plotly-plot, .plot-container, .svg-container {
-            width:100% !important;
-            max-width:100% !important;
-            overflow:hidden !important;
+        div[data-testid="stPlotlyChart"], div[data-testid="stPlotlyChart"] > div,
+        .js-plotly-plot, .plot-container, .svg-container {
+            width:100% !important; max-width:100% !important; overflow:hidden !important;
         }
-        @media (max-width: 850px) {
-            .filter-row, .mini-grid, .feature-grid { grid-template-columns:1fr; }
-            .demo-chart { height:200px; grid-template-columns:repeat(20, 1fr); }
-            .demo-chart .candle:nth-child(n+21) { display:none; }
-        }
+        @media (max-width: 850px) { .feature-grid { grid-template-columns:1fr; } }
     </style>
     """,
     unsafe_allow_html=True,
@@ -200,6 +120,12 @@ def normalize_symbol(symbol):
 
 
 def symbols_from_uploaded_csv(uploaded_file):
+    """Extract ticker symbols from CSV.
+
+    Supported layouts:
+    - Preferred column names: symbol, ticker, tickers, stock, stocks, code
+    - Otherwise, the first column is used
+    """
     try:
         df = pd.read_csv(uploaded_file)
     except Exception:
@@ -215,6 +141,19 @@ def symbols_from_uploaded_csv(uploaded_file):
         if symbol and symbol not in symbols:
             symbols.append(symbol)
     return symbols
+
+
+def create_watchlist_from_symbols(name, symbols):
+    base_name = name.strip() or "CSV Watchlist"
+    final_name = base_name
+    counter = 2
+    while final_name in st.session_state.watchlists:
+        final_name = f"{base_name} {counter}"
+        counter += 1
+    st.session_state.watchlists[final_name] = symbols
+    st.session_state.active_watchlist = final_name
+    save_watchlists(st.session_state.watchlists)
+    return final_name
 
 
 def move_symbol(active_watchlist, symbol, direction):
@@ -289,6 +228,23 @@ def latest_macd_values(df):
     return float(latest_macd), float(latest_signal)
 
 
+def macd_status(df):
+    macd_value, signal_value = latest_macd_values(df)
+    if macd_value is None or signal_value is None:
+        return "N/A"
+    return "Bullish" if macd_value > signal_value else "Bearish"
+
+
+def price_above_sma_status(df, period):
+    if df.empty:
+        return "N/A"
+    sma_value = latest_sma_value(df, period)
+    if sma_value is None:
+        return "N/A"
+    latest_close = float(df["close"].iloc[-1])
+    return "Yes" if latest_close > sma_value else "No"
+
+
 def compare_values(left, operator, right):
     if left is None or right is None:
         return False
@@ -302,7 +258,6 @@ def interval_for_filter_timeframe(timeframe):
 def evaluate_filter_rule(symbol, rule, chart_df, filter_timeframe):
     if chart_df.empty:
         return False, "no chart data"
-
     if rule.startswith("Weekly MACD"):
         df = fetch_stock_history(symbol, "1wk")
         macd_value, signal_value = latest_macd_values(df)
@@ -310,12 +265,10 @@ def evaluate_filter_rule(symbol, rule, chart_df, filter_timeframe):
         passed = compare_values(macd_value, operator, signal_value)
         detail = f"weekly MACD {macd_value if macd_value is not None else 'n/a'} {operator} signal {signal_value if signal_value is not None else 'n/a'}"
         return passed, detail
-
     df = fetch_stock_history(symbol, interval_for_filter_timeframe(filter_timeframe))
     if df.empty:
         return False, f"no {filter_timeframe.lower()} data"
     latest_close = float(df["close"].iloc[-1])
-
     if "SMA" in rule:
         period = int(rule.split("SMA")[-1])
         operator = ">" if ">" in rule else "<"
@@ -323,14 +276,12 @@ def evaluate_filter_rule(symbol, rule, chart_df, filter_timeframe):
         passed = compare_values(latest_close, operator, sma_value)
         detail = f"{filter_timeframe} close {latest_close:.2f} {operator} SMA{period} {sma_value:.2f}" if sma_value is not None else f"SMA{period} unavailable"
         return passed, detail
-
     if rule == "MACD > Signal" or rule == "MACD < Signal":
         macd_value, signal_value = latest_macd_values(df)
         operator = ">" if ">" in rule else "<"
         passed = compare_values(macd_value, operator, signal_value)
         detail = f"{filter_timeframe} MACD {macd_value if macd_value is not None else 'n/a'} {operator} signal {signal_value if signal_value is not None else 'n/a'}"
         return passed, detail
-
     return True, "no filter"
 
 
@@ -352,6 +303,60 @@ def overlay_label(settings, show_volume, show_rsi, show_macd):
     if show_macd:
         items.append("MACD")
     return " · ".join(items) if items else "No overlays"
+
+# =============================================================================
+# Landing-page screener summary table
+# =============================================================================
+def screener_summary_row(symbol):
+    daily = fetch_stock_history(symbol, "1d")
+    weekly = fetch_stock_history(symbol, "1wk")
+    monthly = fetch_stock_history(symbol, "1mo")
+    if daily.empty:
+        return {
+            "Ticker": symbol,
+            "Last Price": "N/A",
+            "MonthlyMACD": "N/A",
+            "WeeklyMACD": "N/A",
+            "DailyMACD": "N/A",
+            "Price>DailySMA20": "N/A",
+            "Price>DailySMA50": "N/A",
+            "Price>DailySMA100": "N/A",
+            "Price>DailySMA200": "N/A",
+        }
+    latest_price = float(daily["close"].iloc[-1])
+    return {
+        "Ticker": symbol,
+        "Last Price": round(latest_price, 2),
+        "MonthlyMACD": macd_status(monthly),
+        "WeeklyMACD": macd_status(weekly),
+        "DailyMACD": macd_status(daily),
+        "Price>DailySMA20": price_above_sma_status(daily, 20),
+        "Price>DailySMA50": price_above_sma_status(daily, 50),
+        "Price>DailySMA100": price_above_sma_status(daily, 100),
+        "Price>DailySMA200": price_above_sma_status(daily, 200),
+    }
+
+
+def build_screener_summary(symbols):
+    rows = []
+    progress = st.progress(0, text="Building screener table...")
+    for index, symbol in enumerate(symbols, start=1):
+        rows.append(screener_summary_row(symbol))
+        progress.progress(index / len(symbols), text=f"Screening {symbol} ({index}/{len(symbols)})")
+    progress.empty()
+    return pd.DataFrame(rows)
+
+
+def style_screener_table(df):
+    def color_cells(value):
+        if value == "Bullish" or value == "Yes":
+            return "background-color: #dcfce7; color: #166534; font-weight: 800;"
+        if value == "Bearish" or value == "No":
+            return "background-color: #fee2e2; color: #991b1b; font-weight: 800;"
+        if value == "N/A":
+            return "background-color: #f1f5f9; color: #64748b; font-weight: 700;"
+        return ""
+    return df.style.map(color_cells)
 
 # =============================================================================
 # Chart
@@ -399,11 +404,16 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
 
     fig = go.Figure()
     fig.add_trace(go.Candlestick(x=display_df["display_index"], open=display_df["open"], high=display_df["high"], low=display_df["low"], close=display_df["close"], name="", showlegend=False, increasing_line_color="#059669", decreasing_line_color="#dc2626", increasing_fillcolor="#10b981", decreasing_fillcolor="#ef4444", hoverinfo="skip"))
-    if settings["SMA20"]: add_sma(fig, full_df, display_df, start_date, 20, "#2563eb")
-    if settings["SMA50"]: add_sma(fig, full_df, display_df, start_date, 50, "#f97316")
-    if settings["SMA100"]: add_sma(fig, full_df, display_df, start_date, 100, "#0891b2")
-    if settings["SMA200"]: add_sma(fig, full_df, display_df, start_date, 200, "#475569")
-    if settings["Bollinger Bands"]: add_bbands(fig, full_df, display_df, start_date)
+    if settings["SMA20"]:
+        add_sma(fig, full_df, display_df, start_date, 20, "#2563eb")
+    if settings["SMA50"]:
+        add_sma(fig, full_df, display_df, start_date, 50, "#f97316")
+    if settings["SMA100"]:
+        add_sma(fig, full_df, display_df, start_date, 100, "#0891b2")
+    if settings["SMA200"]:
+        add_sma(fig, full_df, display_df, start_date, 200, "#475569")
+    if settings["Bollinger Bands"]:
+        add_bbands(fig, full_df, display_df, start_date)
     if show_volume:
         colors = ["#10b981" if row.close >= row.open else "#ef4444" for row in display_df.itertuples()]
         fig.add_trace(go.Bar(x=display_df["display_index"], y=display_df["volume"], name="", showlegend=False, marker_color=colors, opacity=.22, yaxis="y2", hoverinfo="skip"))
@@ -477,56 +487,69 @@ def show_landing_page():
         """
         <div class="hero-card">
           <div class="eyebrow">Stock screener landing page</div>
-          <div class="hero-title">Find stronger setups before the market moves.</div>
-          <p class="hero-copy">Screen watchlists by price action, moving averages, Bollinger Bands, volume, RSI, and MACD. Built for fast signal filtering without losing sight of the chart.</p>
+          <div class="hero-title">Upload a ticker CSV and screen market structure quickly.</div>
+          <p class="hero-copy">Create a summary table with Monthly MACD, Weekly MACD, Daily MACD, and daily price versus SMA conditions before opening the full chart screener.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
     st.write("")
+
+    with st.container(border=True):
+        st.subheader("CSV quick screener")
+        st.caption("Upload a CSV with a symbol/ticker column, or put ticker symbols in the first column.")
+        csv_file = st.file_uploader("Upload ticker CSV for screener table", type=["csv"], key="landing_csv")
+        name_col, button_col = st.columns([2, 1])
+        with name_col:
+            landing_watchlist_name = st.text_input("Optional watchlist name", placeholder="e.g. Momentum Candidates", key="landing_watchlist_name")
+        with button_col:
+            create_uploaded_watchlist = st.button("Save as watchlist")
+
+        if csv_file is not None:
+            symbols = symbols_from_uploaded_csv(csv_file)
+            if not symbols:
+                st.warning("No ticker symbols were found in the uploaded CSV.")
+            else:
+                st.success(f"Loaded {len(symbols)} ticker(s) from CSV.")
+                if create_uploaded_watchlist:
+                    default_name = Path(csv_file.name).stem.replace("_", " ").replace("-", " ").title()
+                    final_name = create_watchlist_from_symbols(landing_watchlist_name or default_name, symbols)
+                    st.session_state.page = "Stock Screener"
+                    st.success(f"Created watchlist: {final_name}")
+                    st.rerun()
+
+                if st.button("Build screener table", type="primary"):
+                    st.session_state.landing_screener_df = build_screener_summary(symbols)
+
+        if "landing_screener_df" in st.session_state:
+            st.markdown("### Screener summary")
+            st.dataframe(style_screener_table(st.session_state.landing_screener_df), use_container_width=True, hide_index=True)
+            st.download_button(
+                "Download screener table as CSV",
+                st.session_state.landing_screener_df.to_csv(index=False).encode("utf-8"),
+                "screener_summary.csv",
+                "text/csv",
+            )
+
+    st.write("")
     c1, c2 = st.columns([0.9, 1.1])
     with c1:
-        if st.button("Start screening", type="primary"):
+        if st.button("Go to full stock screener", type="primary"):
             st.session_state.page = "Stock Screener"
             st.rerun()
         st.markdown("""
-        ### Why use this screener?
-        - Multi-timeframe filters for price, SMA, and MACD conditions.
-        - CSV watchlist uploads for faster setup.
-        - Compact charts with optional Volume, RSI, and MACD panels.
-        - Filter diagnostics so you can verify why a ticker passed or failed.
+        ### Table columns
+        - **MonthlyMACD / WeeklyMACD / DailyMACD**: Bullish when MACD is above signal; Bearish when MACD is below signal.
+        - **Price>DailySMA20 / 50 / 100 / 200**: Yes when latest daily close is above the selected daily SMA.
         """)
     with c2:
-        candles = "".join([
-            f'<span class="candle {"red" if i % 5 in [1, 4] else ""}" style="height:{h}%"></span>'
-            for i, h in enumerate([42,54,47,58,38,62,68,44,71,76,56,79,84,63,80,88,69,91,96,78,93,86,73,82,89,74])
-        ])
-        st.markdown(f"""
-        <div class="mock-screen">
-            <div class="mock-top"><div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><strong>Screener preview</strong></div>
-            <div class="mock-body">
-                <div class="filter-row">
-                    <div class="filter-pill">Last Price &gt; SMA20</div>
-                    <div class="filter-pill">Weekly MACD &gt; Signal</div>
-                    <div class="filter-pill">Volume enabled</div>
-                </div>
-                <div class="demo-chart">{candles}</div>
-                <div class="mini-grid">
-                    <div class="mini-card"><small>SMA20</small><strong>Above</strong></div>
-                    <div class="mini-card"><small>MACD</small><strong>Bullish cross</strong></div>
-                    <div class="mini-card"><small>RSI</small><strong>62.4</strong></div>
-                </div>
-            </div>
+        st.markdown("""
+        <div class="feature-grid">
+            <div class="feature-card"><h3>Green cells</h3><p>Bullish MACD or price above SMA.</p></div>
+            <div class="feature-card"><h3>Red cells</h3><p>Bearish MACD or price below SMA.</p></div>
+            <div class="feature-card"><h3>N/A cells</h3><p>Not enough data to compute the indicator.</p></div>
         </div>
         """, unsafe_allow_html=True)
-    st.write("")
-    st.markdown("""
-    <div class="feature-grid">
-        <div class="feature-card"><h3>Technical filters</h3><p>Filter by price versus SMA20, SMA50, SMA100, SMA200, MACD signal crossovers, and weekly momentum rules.</p></div>
-        <div class="feature-card"><h3>Watchlist-first design</h3><p>Create, rename, delete, reorder, and upload CSV watchlists directly from the sidebar.</p></div>
-        <div class="feature-card"><h3>Mobile-friendly charts</h3><p>Charts use indexed candles, fixed interaction, hidden x-axis labels, and separate lower indicator panels.</p></div>
-    </div>
-    """, unsafe_allow_html=True)
 
 
 def show_screener_page():
@@ -641,17 +664,9 @@ with st.sidebar:
                 st.warning("No ticker symbols were found in the CSV.")
             else:
                 default_name = Path(uploaded_csv.name).stem.replace("_", " ").replace("-", " ").title()
-                base_name = csv_watchlist_name.strip() or default_name or "CSV Watchlist"
-                name = base_name
-                counter = 2
-                while name in st.session_state.watchlists:
-                    name = f"{base_name} {counter}"
-                    counter += 1
-                st.session_state.watchlists[name] = csv_symbols
-                st.session_state.active_watchlist = name
-                save_watchlists(st.session_state.watchlists)
+                final_name = create_watchlist_from_symbols(csv_watchlist_name or default_name, csv_symbols)
                 st.session_state.page = "Stock Screener"
-                st.success(f"Created {name} with {len(csv_symbols)} symbol(s).")
+                st.success(f"Created watchlist: {final_name}")
                 st.rerun()
 
     with st.expander("Create / rename / delete", expanded=False):
