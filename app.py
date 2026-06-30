@@ -551,6 +551,47 @@ def show_landing_page():
                 "text/csv",
             )
 
+            filtered_symbols = filtered_landing_df["Ticker"].astype(str).tolist()
+            graph_col, watchlist_col = st.columns(2)
+            with graph_col:
+                if st.button("Show Graph", type="primary", disabled=len(filtered_symbols) == 0):
+                    st.session_state.landing_graph_symbols = filtered_symbols
+            with watchlist_col:
+                if st.button("Create Watchlist from Filtered Stocks", disabled=len(filtered_symbols) == 0):
+                    base_name = landing_watchlist_name.strip() or "Filtered Screener Watchlist"
+                    final_name = create_watchlist_from_symbols(base_name, filtered_symbols)
+                    st.success(f"Created watchlist: {final_name} with {len(filtered_symbols)} stock(s).")
+
+    if "landing_graph_symbols" in st.session_state and st.session_state.landing_graph_symbols:
+        st.write("")
+        st.subheader("Graphs for filtered stocks")
+        st.caption(f"Showing {len(st.session_state.landing_graph_symbols)} graph(s). Adjust the table filters above, then click Show Graph again to update this section.")
+        landing_settings = {
+            "SMA20": show_sma20,
+            "SMA50": show_sma50,
+            "SMA100": show_sma100,
+            "SMA200": show_sma200,
+            "Bollinger Bands": show_bbands,
+        }
+        for graph_index, graph_symbol in enumerate(st.session_state.landing_graph_symbols, start=1):
+            with st.container(border=True):
+                with st.spinner(f"Loading {graph_symbol} chart..."):
+                    graph_df = fetch_stock_history(graph_symbol, interval)
+                if graph_df.empty:
+                    st.error(f"No chart data found for {graph_symbol}.")
+                    continue
+                graph_display_df = visible_candles(graph_df, max_points)
+                graph_price, graph_pct = price_summary(graph_display_df)
+                st.markdown(f"""
+                <div class="stock-head">
+                  <div><div class="stock-title">{graph_index}. {graph_symbol}</div><div class="stock-sub">{len(graph_display_df)} indexed candles · no x-axis labels</div></div>
+                  <div class="price-pill">{graph_price} · {graph_pct}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown(f'<div class="indicator-row">{overlay_label(landing_settings, show_volume, show_rsi, show_macd)}</div>', unsafe_allow_html=True)
+                fig = make_chart(graph_symbol, graph_df, graph_display_df, landing_settings, show_volume, show_rsi, show_macd, price_height)
+                st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
+
     st.write("")
     c1, c2 = st.columns([0.9, 1.1])
     with c1:
