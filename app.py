@@ -305,7 +305,7 @@ def overlay_label(settings, show_volume, show_rsi, show_macd):
     return " · ".join(items) if items else "No overlays"
 
 # =============================================================================
-# Landing-page screener summary table
+# Stock Screener-page screener summary table
 # =============================================================================
 def screener_summary_row(symbol):
     daily = fetch_stock_history(symbol, "1d")
@@ -532,7 +532,7 @@ def show_landing_page():
                 if create_uploaded_watchlist:
                     default_name = Path(csv_file.name).stem.replace("_", " ").replace("-", " ").title()
                     final_name = create_watchlist_from_symbols(landing_watchlist_name or default_name, symbols)
-                    st.session_state.page = "Stock Screener"
+                    st.session_state.page = "Watchlist"
                     st.success(f"Created watchlist: {final_name}")
                     st.rerun()
 
@@ -595,9 +595,6 @@ def show_landing_page():
     st.write("")
     c1, c2 = st.columns([0.9, 1.1])
     with c1:
-        if st.button("Go to full stock screener", type="primary"):
-            st.session_state.page = "Stock Screener"
-            st.rerun()
         st.markdown("""
         ### Table columns
         - **MonthlyMACD / WeeklyMACD / DailyMACD**: Bullish when MACD is above signal; Bearish when MACD is below signal.
@@ -684,7 +681,13 @@ if "watchlists" not in st.session_state:
 if "active_watchlist" not in st.session_state:
     st.session_state.active_watchlist = next(iter(st.session_state.watchlists.keys()))
 if "page" not in st.session_state:
-    st.session_state.page = "Landing"
+    st.session_state.page = "Stock Screener"
+if st.session_state.get("page_labels_version") != 2:
+    if st.session_state.page == "Stock Screener":
+        st.session_state.page = "Stock Screener"
+    elif st.session_state.page == "Stock Screener":
+        st.session_state.page = "Watchlist"
+    st.session_state.page_labels_version = 2
 
 names = list(st.session_state.watchlists.keys())
 if st.session_state.active_watchlist not in names and names:
@@ -709,7 +712,7 @@ with st.sidebar:
         else:
             st.session_state.watchlists[active].append(symbol)
             save_watchlists(st.session_state.watchlists)
-            st.session_state.page = "Stock Screener"
+            st.session_state.page = "Watchlist"
             st.rerun()
 
     st.markdown('<div class="section-label">Create watchlist from CSV</div>', unsafe_allow_html=True)
@@ -725,7 +728,7 @@ with st.sidebar:
             else:
                 default_name = Path(uploaded_csv.name).stem.replace("_", " ").replace("-", " ").title()
                 final_name = create_watchlist_from_symbols(csv_watchlist_name or default_name, csv_symbols)
-                st.session_state.page = "Stock Screener"
+                st.session_state.page = "Watchlist"
                 st.success(f"Created watchlist: {final_name}")
                 st.rerun()
 
@@ -741,7 +744,7 @@ with st.sidebar:
                 st.session_state.watchlists[name] = []
                 st.session_state.active_watchlist = name
                 save_watchlists(st.session_state.watchlists)
-                st.session_state.page = "Stock Screener"
+                st.session_state.page = "Watchlist"
                 st.rerun()
         rename_name = st.text_input("Rename selected watchlist", value=st.session_state.active_watchlist)
         if st.button("Rename selected watchlist"):
@@ -784,30 +787,31 @@ with st.sidebar:
         st.rerun()
 
 
-# Default screener filter values. Stock filtering now lives on the Landing page table.
+# Default screener filter values. Stock filtering now lives on the Stock Screener page table.
 selected_filters = []
 filter_timeframe = "Daily"
 filter_match_mode = "All selected filters"
 show_filter_diagnostics = False
 
 # Top heading navigation
+st.markdown("<div style='height: 1.25rem;'></div>", unsafe_allow_html=True)
 nav_col1, nav_col2, nav_col3 = st.columns([2.4, 1, 1])
 with nav_col1:
     st.markdown("### SignalScope")
-    st.caption("Landing quick screener and full chart screener")
+    st.caption("Stock Screener quick table and Watchlist chart view")
 with nav_col2:
-    if st.button("Landing", use_container_width=True, type="primary" if st.session_state.page == "Landing" else "secondary"):
-        st.session_state.page = "Landing"
-        st.rerun()
-with nav_col3:
     if st.button("Stock Screener", use_container_width=True, type="primary" if st.session_state.page == "Stock Screener" else "secondary"):
         st.session_state.page = "Stock Screener"
+        st.rerun()
+with nav_col3:
+    if st.button("Watchlist", use_container_width=True, type="primary" if st.session_state.page == "Watchlist" else "secondary"):
+        st.session_state.page = "Watchlist"
         st.rerun()
 
 # =============================================================================
 # Render selected page
 # =============================================================================
-if st.session_state.page == "Landing":
+if st.session_state.page == "Stock Screener":
     show_landing_page()
 else:
     show_screener_page()
