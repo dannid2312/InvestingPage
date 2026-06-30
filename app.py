@@ -20,13 +20,14 @@ st.markdown("""
 <style>
 html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden !important; }
 .stApp { background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 48%, #eff6ff 100%); color: #0f172a; }
+.block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 1120px; }
 section[data-testid="stSidebar"] { background:#ffffff; border-right:1px solid #dbe3ef; }
 section[data-testid="stSidebar"] * { color:#0f172a; }
-.block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 1120px; }
 .hero-card { padding: 1.55rem; border: 1px solid #dbe3ef; border-radius: 1.3rem; background: #fff; box-shadow: 0 18px 60px rgba(15,23,42,.08); }
 .eyebrow { color: #2563eb; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .76rem; margin-bottom: .65rem; }
 .hero-title { color:#0f172a; font-size: clamp(1.75rem,5vw,2.65rem); line-height:1.08; font-weight:850; margin:0 0 .75rem 0; }
 .hero-subtitle { color:#475569; max-width:920px; font-size: clamp(.95rem,2.4vw,1.05rem); line-height:1.6; margin:0; }
+.section-label { color:#0f172a; font-weight:800; font-size:1.02rem; margin-top:.25rem; margin-bottom:.15rem; }
 .stock-head { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; flex-wrap:wrap; margin-bottom:.4rem; }
 .stock-title { font-weight:850; font-size:clamp(1rem,3vw,1.18rem); }
 .stock-sub { color:#64748b; font-size:.82rem; }
@@ -58,7 +59,31 @@ def save_watchlists(watchlists):
 
 
 def normalize_symbol(symbol):
-    return symbol.strip().replace(" ", "").upper()
+    return str(symbol).strip().replace(" ", "").upper()
+
+
+def symbols_from_uploaded_csv(uploaded_file):
+    """Extract ticker symbols from CSV.
+
+    Supported layouts:
+    - Preferred column names: symbol, ticker, tickers, stock, stocks, code
+    - Otherwise, the first column is used
+    """
+    try:
+        df = pd.read_csv(uploaded_file)
+    except Exception:
+        return []
+    if df.empty:
+        return []
+    preferred = ["symbol", "ticker", "tickers", "stock", "stocks", "code"]
+    lowered = {str(col).strip().lower(): col for col in df.columns}
+    selected = next((lowered[name] for name in preferred if name in lowered), df.columns[0])
+    symbols = []
+    for value in df[selected].dropna().tolist():
+        symbol = normalize_symbol(value)
+        if symbol and symbol not in symbols:
+            symbols.append(symbol)
+    return symbols
 
 
 def move_symbol(active_watchlist, symbol, direction):
@@ -142,17 +167,13 @@ def add_bbands(fig, full_df, display_df, start_date):
     data = data[data["date"] >= start_date].dropna().merge(display_df[["date", "display_index"]], on="date", how="inner")
     if data.empty:
         return
-    fig.add_trace(go.Scatter(x=data["display_index"], y=data["upper"], mode="lines", name="", showlegend=False, line=dict(color="#9333ea", width=1.3, dash="dot"), hoverinfo="skip"))
-    fig.add_trace(go.Scatter(x=data["display_index"], y=data["lower"], mode="lines", name="", showlegend=False, line=dict(color="#9333ea", width=1.3, dash="dot"), fill="tonexty", fillcolor="rgba(147,51,234,.08)", hoverinfo="skip"))
+    fig.add_trace(go.Scatter(x=data["display_index"], y=data["upper"], mode="lines", name="", showlegend=False, line=dict(color="#9333ea", width=1.2, dash="dot"), hoverinfo="skip"))
+    fig.add_trace(go.Scatter(x=data["display_index"], y=data["lower"], mode="lines", name="", showlegend=False, line=dict(color="#9333ea", width=1.2, dash="dot"), fill="tonexty", fillcolor="rgba(147,51,234,.08)", hoverinfo="skip"))
 
 
 def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, show_macd, price_height):
     start_date = display_df["date"].min()
     display_df = add_index(display_df)
-
-    # Treat Volume, RSI, and MACD as true lower panels.
-    # The main candlestick area uses the user-provided width and height.
-    price_height = int(price_height)
     panel_heights = []
     if show_macd:
         panel_heights.append(("macd", 95))
@@ -160,72 +181,30 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
         panel_heights.append(("rsi", 85))
     if show_volume:
         panel_heights.append(("volume", 65))
-
-    gap_height = 12
-    total_height = price_height + sum(height for _, height in panel_heights) + gap_height * len(panel_heights)
-
+    gap = 12
+    total_height = int(price_height) + sum(h for _, h in panel_heights) + gap * len(panel_heights)
     domains = {}
     cursor = 0
-    for panel_name, panel_height in panel_heights:
-        domains[panel_name] = [cursor / total_height, (cursor + panel_height) / total_height]
-        cursor += panel_height + gap_height
+    for panel, h in panel_heights:
+        domains[panel] = [cursor / total_height, (cursor + h) / total_height]
+        cursor += h + gap
     domains["price"] = [cursor / total_height, 1.0]
 
     fig = go.Figure()
-    fig.add_trace(go.Candlestick(
-        x=display_df["display_index"],
-        open=display_df["open"],
-        high=display_df["high"],
-        low=display_df["low"],
-        close=display_df["close"],
-        name="",
-        showlegend=False,
-        increasing_line_color="#059669",
-        decreasing_line_color="#dc2626",
-        increasing_fillcolor="#10b981",
-        decreasing_fillcolor="#ef4444",
-        hoverinfo="skip",
-    ))
-
-    if settings["SMA20"]:
-        add_sma(fig, full_df, display_df, start_date, 20, "#2563eb")
-    if settings["SMA50"]:
-        add_sma(fig, full_df, display_df, start_date, 50, "#f97316")
-    if settings["SMA100"]:
-        add_sma(fig, full_df, display_df, start_date, 100, "#0891b2")
-    if settings["SMA200"]:
-        add_sma(fig, full_df, display_df, start_date, 200, "#475569")
-    if settings["Bollinger Bands"]:
-        add_bbands(fig, full_df, display_df, start_date)
-
+    fig.add_trace(go.Candlestick(x=display_df["display_index"], open=display_df["open"], high=display_df["high"], low=display_df["low"], close=display_df["close"], name="", showlegend=False, increasing_line_color="#059669", decreasing_line_color="#dc2626", increasing_fillcolor="#10b981", decreasing_fillcolor="#ef4444", hoverinfo="skip"))
+    if settings["SMA20"]: add_sma(fig, full_df, display_df, start_date, 20, "#2563eb")
+    if settings["SMA50"]: add_sma(fig, full_df, display_df, start_date, 50, "#f97316")
+    if settings["SMA100"]: add_sma(fig, full_df, display_df, start_date, 100, "#0891b2")
+    if settings["SMA200"]: add_sma(fig, full_df, display_df, start_date, 200, "#475569")
+    if settings["Bollinger Bands"]: add_bbands(fig, full_df, display_df, start_date)
     if show_volume:
         colors = ["#10b981" if row.close >= row.open else "#ef4444" for row in display_df.itertuples()]
-        fig.add_trace(go.Bar(
-            x=display_df["display_index"],
-            y=display_df["volume"],
-            name="",
-            showlegend=False,
-            marker_color=colors,
-            opacity=.22,
-            yaxis="y2",
-            hoverinfo="skip",
-        ))
-
+        fig.add_trace(go.Bar(x=display_df["display_index"], y=display_df["volume"], name="", showlegend=False, marker_color=colors, opacity=.22, yaxis="y2", hoverinfo="skip"))
     if show_rsi and len(full_df) >= 14:
         rr = pd.DataFrame({"date": full_df["date"], "value": rsi(full_df["close"])})
         rr = rr[rr["date"] >= start_date].dropna().merge(display_df[["date", "display_index"]], on="date", how="inner")
         if not rr.empty:
-            fig.add_trace(go.Scatter(
-                x=rr["display_index"],
-                y=rr["value"],
-                mode="lines",
-                name="",
-                showlegend=False,
-                line=dict(color="#7c3aed", width=2),
-                yaxis="y3",
-                hoverinfo="skip",
-            ))
-
+            fig.add_trace(go.Scatter(x=rr["display_index"], y=rr["value"], mode="lines", name="", showlegend=False, line=dict(color="#7c3aed", width=2), yaxis="y3", hoverinfo="skip"))
     if show_macd and len(full_df) >= 35:
         macd_line, signal_line, histogram = macd(full_df["close"])
         mm = pd.DataFrame({"date": full_df["date"], "macd": macd_line, "signal": signal_line, "hist": histogram})
@@ -236,166 +215,30 @@ def make_chart(symbol, full_df, display_df, settings, show_volume, show_rsi, sho
             fig.add_trace(go.Scatter(x=mm["display_index"], y=mm["macd"], mode="lines", name="", showlegend=False, line=dict(color="#2563eb", width=1.8), yaxis="y4", hoverinfo="skip"))
             fig.add_trace(go.Scatter(x=mm["display_index"], y=mm["signal"], mode="lines", name="", showlegend=False, line=dict(color="#f97316", width=1.6), yaxis="y4", hoverinfo="skip"))
 
-    # Axis ranges are captured for mirrored left-side labels.
+    axis_font = dict(size=10, family="Arial, sans-serif", color="#334155")
     price_min = float(display_df["low"].min())
     price_max = float(display_df["high"].max())
     price_pad = (price_max - price_min) * 0.04 if price_max > price_min else 1
     price_range = [price_min - price_pad, price_max + price_pad]
     volume_range = [0, float(display_df["volume"].max())] if show_volume else [0, 1]
 
-    fig.update_layout(
-        title_text="",
-        template="plotly_white",
-        autosize=True,
-        height=total_height,
-        margin=dict(l=44, r=44, t=0, b=0),
-        paper_bgcolor="#fff",
-        plot_bgcolor="#f8fafc",
-        dragmode=False,
-        hovermode=False,
-        showlegend=False,
-        font=dict(size=10, family="Arial, sans-serif", color="#0f172a"),
-        xaxis=dict(
-            title_text="",
-            rangeslider=dict(visible=False),
-            fixedrange=True,
-            showticklabels=False,
-            ticks="",
-            showgrid=False,
-            zeroline=False,
-        ),
-        yaxis=dict(
-            title_text="",
-            fixedrange=True,
-            side="right",
-            range=price_range,
-            tickformat=".2f",
-            nticks=5,
-            automargin=True,
-            showgrid=True,
-            gridcolor="#e2e8f0",
-            zeroline=False,
-            domain=domains["price"],
-        ),
-        yaxis2=dict(
-            title_text="",
-            fixedrange=True,
-            side="right",
-            range=volume_range,
-            domain=domains.get("volume", [0, 0]),
-            visible=show_volume,
-            showticklabels=show_volume,
-            tickfont=dict(size=10, family="Arial, sans-serif", color="#0f172a"),
-            nticks=2,
-            ticks="",
-            showgrid=False,
-            zeroline=False,
-        ),
-        yaxis5=dict(
-            title_text="",
-            overlaying="y",
-            side="left",
-            fixedrange=True,
-            range=price_range,
-            showticklabels=True,
-            tickformat=".2f",
-            nticks=5,
-            tickfont=dict(size=10, family="Arial, sans-serif", color="#0f172a"),
-            showgrid=False,
-            zeroline=False,
-        ),
-        yaxis6=dict(
-            title_text="",
-            overlaying="y2",
-            side="left",
-            fixedrange=True,
-            range=volume_range,
-            visible=show_volume,
-            showticklabels=show_volume,
-            nticks=2,
-            ticks="",
-            tickfont=dict(size=10, family="Arial, sans-serif", color="#0f172a"),
-            showgrid=False,
-            zeroline=False,
-        ),
-    )
-
-    # Invisible traces force Plotly to render mirrored axes on the left side.
+    fig.update_layout(title_text="", template="plotly_white", autosize=True, height=total_height, margin=dict(l=44, r=44, t=0, b=0), paper_bgcolor="#fff", plot_bgcolor="#f8fafc", dragmode=False, hovermode=False, showlegend=False, font=dict(size=10, family="Arial, sans-serif", color="#0f172a"), xaxis=dict(title_text="", rangeslider=dict(visible=False), fixedrange=True, showticklabels=False, ticks="", showgrid=False, zeroline=False), yaxis=dict(title_text="", fixedrange=True, side="right", range=price_range, tickformat=".2f", nticks=5, automargin=True, tickfont=axis_font, showgrid=True, gridcolor="#e2e8f0", zeroline=False, domain=domains["price"]), yaxis2=dict(title_text="", fixedrange=True, side="right", range=volume_range, domain=domains.get("volume", [0, 0]), visible=show_volume, showticklabels=show_volume, tickfont=axis_font, nticks=2, ticks="", automargin=True, showgrid=False, zeroline=False), yaxis5=dict(title_text="", overlaying="y", side="left", fixedrange=True, range=price_range, showticklabels=True, tickformat=".2f", nticks=5, ticks="", automargin=True, tickfont=axis_font, showgrid=False, zeroline=False), yaxis6=dict(title_text="", overlaying="y2", side="left", fixedrange=True, range=volume_range, visible=show_volume, showticklabels=show_volume, nticks=2, ticks="", automargin=True, tickfont=axis_font, showgrid=False, zeroline=False))
     fig.add_trace(go.Scatter(x=display_df["display_index"], y=display_df["close"], yaxis="y5", mode="lines", line=dict(width=0), opacity=0, showlegend=False, hoverinfo="skip", name=""))
     if show_volume:
         fig.add_trace(go.Scatter(x=display_df["display_index"], y=display_df["volume"], yaxis="y6", mode="lines", line=dict(width=0), opacity=0, showlegend=False, hoverinfo="skip", name=""))
-
     if show_rsi:
-        fig.update_layout(
-            yaxis3=dict(
-                title_text="",
-                domain=domains.get("rsi", [0, 0]),
-                range=[0, 100],
-                fixedrange=True,
-                side="right",
-                nticks=3,
-                showticklabels=True,
-                showgrid=True,
-                gridcolor="#e2e8f0",
-                zeroline=False,
-                automargin=True,
-                tickfont=dict(size=10, family="Arial, sans-serif", color="#0f172a"),
-            ),
-            yaxis7=dict(
-                title_text="",
-                overlaying="y3",
-                side="left",
-                range=[0, 100],
-                fixedrange=True,
-                nticks=3,
-                showticklabels=True,
-                tickfont=dict(size=10, family="Arial, sans-serif", color="#0f172a"),
-                showgrid=False,
-                zeroline=False,
-            ),
-        )
+        fig.update_layout(yaxis3=dict(title_text="", domain=domains.get("rsi", [0, 0]), range=[0, 100], fixedrange=True, side="right", nticks=3, showticklabels=True, showgrid=True, gridcolor="#e2e8f0", zeroline=False, automargin=True, tickfont=axis_font), yaxis7=dict(title_text="", overlaying="y3", side="left", range=[0, 100], fixedrange=True, nticks=3, showticklabels=True, ticks="", automargin=True, tickfont=axis_font, showgrid=False, zeroline=False))
         fig.add_trace(go.Scatter(x=display_df["display_index"], y=[50] * len(display_df), yaxis="y7", mode="lines", line=dict(width=0), opacity=0, showlegend=False, hoverinfo="skip", name=""))
         fig.add_hline(y=70, line_dash="dot", line_color="#dc2626", opacity=.55, yref="y3")
         fig.add_hline(y=30, line_dash="dot", line_color="#059669", opacity=.55, yref="y3")
-
     if show_macd:
         macd_range = None
         if 'mm' in locals() and not mm.empty:
             max_abs = float(max(abs(mm["macd"]).max(), abs(mm["signal"]).max(), abs(mm["hist"]).max()))
-            max_abs = max(max_abs, 0.01)
-            macd_range = [-max_abs * 1.15, max_abs * 1.15]
-        fig.update_layout(
-            yaxis4=dict(
-                title_text="",
-                domain=domains.get("macd", [0, 0]),
-                range=macd_range,
-                fixedrange=True,
-                side="right",
-                nticks=3,
-                showticklabels=True,
-                showgrid=True,
-                gridcolor="#e2e8f0",
-                zeroline=True,
-                zerolinecolor="#94a3b8",
-                automargin=True,
-                tickfont=dict(size=10, family="Arial, sans-serif", color="#0f172a"),
-            ),
-            yaxis8=dict(
-                title_text="",
-                overlaying="y4",
-                side="left",
-                range=macd_range,
-                fixedrange=True,
-                nticks=3,
-                showticklabels=True,
-                tickfont=dict(size=10, family="Arial, sans-serif", color="#0f172a"),
-                showgrid=False,
-                zeroline=False,
-            ),
-        )
+            macd_range = [-max(max_abs, 0.01) * 1.15, max(max_abs, 0.01) * 1.15]
+        fig.update_layout(yaxis4=dict(title_text="", domain=domains.get("macd", [0, 0]), range=macd_range, fixedrange=True, side="right", nticks=3, showticklabels=True, showgrid=True, gridcolor="#e2e8f0", zeroline=True, zerolinecolor="#94a3b8", automargin=True, tickfont=axis_font), yaxis8=dict(title_text="", overlaying="y4", side="left", range=macd_range, fixedrange=True, nticks=3, showticklabels=True, ticks="", automargin=True, tickfont=axis_font, showgrid=False, zeroline=False))
         if macd_range is not None:
             fig.add_trace(go.Scatter(x=display_df["display_index"], y=[0] * len(display_df), yaxis="y8", mode="lines", line=dict(width=0), opacity=0, showlegend=False, hoverinfo="skip", name=""))
-
     for trace in fig.data:
         trace.showlegend = False
         trace.name = ""
@@ -431,24 +274,12 @@ if st.session_state.active_watchlist not in names and names:
 with st.sidebar:
     st.header("Watchlist")
     st.caption("Create, select, rename, and manage your ticker lists.")
-
     st.markdown('<div class="section-label">Active watchlist</div>', unsafe_allow_html=True)
-    st.session_state.active_watchlist = st.selectbox(
-        "Active watchlist",
-        names,
-        index=names.index(st.session_state.active_watchlist),
-        label_visibility="collapsed",
-    )
-
+    st.session_state.active_watchlist = st.selectbox("Active watchlist", names, index=names.index(st.session_state.active_watchlist), label_visibility="collapsed")
     st.markdown('<div class="section-label">Add stock ticker</div>', unsafe_allow_html=True)
     with st.form("add_symbol_form", clear_on_submit=True):
-        symbol_input = st.text_input(
-            "Ticker symbol",
-            placeholder="AAPL, TSLA, BHP.AX, CBA.AX, BTC-USD",
-            label_visibility="collapsed",
-        )
+        symbol_input = st.text_input("Ticker symbol", placeholder="AAPL, TSLA, BHP.AX, CBA.AX, BTC-USD", label_visibility="collapsed")
         submitted = st.form_submit_button("Add stock")
-
     if submitted:
         active = st.session_state.active_watchlist
         symbol = normalize_symbol(symbol_input)
@@ -460,6 +291,30 @@ with st.sidebar:
             st.session_state.watchlists[active].append(symbol)
             save_watchlists(st.session_state.watchlists)
             st.rerun()
+
+    st.markdown('<div class="section-label">Create watchlist from CSV</div>', unsafe_allow_html=True)
+    uploaded_csv = st.file_uploader("Upload CSV", type=["csv"], label_visibility="collapsed", help="Use a CSV with a symbol/ticker column, or put symbols in the first column.")
+    csv_watchlist_name = st.text_input("CSV watchlist name", placeholder="e.g. My CSV Watchlist")
+    if st.button("Create watchlist from CSV"):
+        if uploaded_csv is None:
+            st.warning("Please upload a CSV file first.")
+        else:
+            csv_symbols = symbols_from_uploaded_csv(uploaded_csv)
+            if not csv_symbols:
+                st.warning("No ticker symbols were found in the CSV.")
+            else:
+                default_name = Path(uploaded_csv.name).stem.replace("_", " ").replace("-", " ").title()
+                base_name = csv_watchlist_name.strip() or default_name or "CSV Watchlist"
+                name = base_name
+                counter = 2
+                while name in st.session_state.watchlists:
+                    name = f"{base_name} {counter}"
+                    counter += 1
+                st.session_state.watchlists[name] = csv_symbols
+                st.session_state.active_watchlist = name
+                save_watchlists(st.session_state.watchlists)
+                st.success(f"Created {name} with {len(csv_symbols)} symbol(s).")
+                st.rerun()
 
     with st.expander("Create / rename / delete", expanded=False):
         new_name = st.text_input("New watchlist name", placeholder="e.g. Dividend Picks")
@@ -474,7 +329,6 @@ with st.sidebar:
                 st.session_state.active_watchlist = name
                 save_watchlists(st.session_state.watchlists)
                 st.rerun()
-
         rename_name = st.text_input("Rename selected watchlist", value=st.session_state.active_watchlist)
         if st.button("Rename selected watchlist"):
             old = st.session_state.active_watchlist
@@ -488,7 +342,6 @@ with st.sidebar:
                 st.session_state.active_watchlist = new
                 save_watchlists(st.session_state.watchlists)
                 st.rerun()
-
         if st.button("Delete selected watchlist", disabled=len(st.session_state.watchlists) <= 1):
             st.session_state.watchlists.pop(st.session_state.active_watchlist, None)
             st.session_state.active_watchlist = next(iter(st.session_state.watchlists.keys()))
@@ -498,16 +351,10 @@ with st.sidebar:
     st.divider()
     st.header("Chart settings")
     st.caption("Visible candles control the displayed recent range; indicators still use full history.")
-
     interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
     st.caption("Chart uses flexible width and a fixed 250 px main candlestick height.")
     price_height = 250
-    max_points = st.select_slider(
-        "Visible recent candles",
-        options=[20, 30, 45, 60, 75, 90, 120, 180],
-        value=60,
-    )
-
+    max_points = st.select_slider("Visible recent candles", options=[20, 30, 45, 60, 75, 90, 120, 180], value=60)
     st.markdown('<div class="section-label">Indicators</div>', unsafe_allow_html=True)
     show_sma20 = st.toggle("SMA 20", value=True)
     show_sma50 = st.toggle("SMA 50", value=False)
@@ -517,19 +364,11 @@ with st.sidebar:
     show_volume = st.toggle("Volume", value=True)
     show_rsi = st.toggle("RSI 14", value=False)
     show_macd = st.toggle("MACD", value=False)
-
     if st.button("Refresh market data"):
         fetch_stock_history.clear()
         st.rerun()
 
-
-settings = {
-    "SMA20": show_sma20,
-    "SMA50": show_sma50,
-    "SMA100": show_sma100,
-    "SMA200": show_sma200,
-    "Bollinger Bands": show_bbands,
-}
+settings = {"SMA20": show_sma20, "SMA50": show_sma50, "SMA100": show_sma100, "SMA200": show_sma200, "Bollinger Bands": show_bbands}
 
 st.divider()
 active = st.session_state.active_watchlist
