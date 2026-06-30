@@ -311,31 +311,23 @@ def screener_summary_row(symbol):
     daily = fetch_stock_history(symbol, "1d")
     weekly = fetch_stock_history(symbol, "1wk")
     monthly = fetch_stock_history(symbol, "1mo")
-    if daily.empty:
-        return {
-            "Ticker": symbol,
-            "Last Price": "N/A",
-            "MonthlyMACD": "N/A",
-            "WeeklyMACD": "N/A",
-            "DailyMACD": "N/A",
-            "Price>DailySMA20": "N/A",
-            "Price>DailySMA50": "N/A",
-            "Price>DailySMA100": "N/A",
-            "Price>DailySMA200": "N/A",
-        }
-    latest_price = float(daily["close"].iloc[-1])
-    return {
+
+    row = {
         "Ticker": symbol,
-        "Last Price": round(latest_price, 2),
         "MonthlyMACD": macd_status(monthly),
         "WeeklyMACD": macd_status(weekly),
         "DailyMACD": macd_status(daily),
-        "Price>DailySMA20": price_above_sma_status(daily, 20),
-        "Price>DailySMA50": price_above_sma_status(daily, 50),
-        "Price>DailySMA100": price_above_sma_status(daily, 100),
-        "Price>DailySMA200": price_above_sma_status(daily, 200),
     }
 
+    for timeframe_name, df in [
+        ("Daily", daily),
+        ("Weekly", weekly),
+        ("Monthly", monthly),
+    ]:
+        for period in [20, 50, 100, 200]:
+            row[f"Price>{timeframe_name}SMA{period}"] = price_above_sma_status(df, period)
+
+    return row
 
 def build_screener_summary(symbols):
     rows = []
@@ -357,6 +349,30 @@ def style_screener_table(df):
             return "background-color: #f1f5f9; color: #64748b; font-weight: 700;"
         return ""
     return df.style.map(color_cells)
+
+def apply_landing_table_filters(df):
+    """Render per-column filters for the landing screener table and return filtered data."""
+    filtered_df = df.copy()
+    filter_columns = [column for column in df.columns if column != "Ticker"]
+
+    with st.expander("Filter screener table columns", expanded=True):
+        st.caption("Leave all values selected to keep a column unfiltered. Remove values to narrow the table.")
+        for row_start in range(0, len(filter_columns), 3):
+            cols = st.columns(3)
+            for idx, column in enumerate(filter_columns[row_start:row_start + 3]):
+                options = sorted([str(value) for value in df[column].dropna().unique().tolist()])
+                if not options:
+                    continue
+                with cols[idx]:
+                    selected_values = st.multiselect(
+                        column,
+                        options=options,
+                        default=options,
+                        key=f"landing_filter_{column}",
+                    )
+                filtered_df = filtered_df[filtered_df[column].astype(str).isin(selected_values)]
+
+    return filtered_df
 
 # =============================================================================
 # Chart
@@ -488,7 +504,7 @@ def show_landing_page():
         <div class="hero-card">
           <div class="eyebrow">Stock screener landing page</div>
           <div class="hero-title">Upload a ticker CSV and screen market structure quickly.</div>
-          <p class="hero-copy">Create a summary table with Monthly MACD, Weekly MACD, Daily MACD, and daily price versus SMA conditions before opening the full chart screener.</p>
+          <p class="hero-copy">Create a summary table with Monthly, Weekly, and Daily MACD plus price versus SMA20, SMA50, SMA100, and SMA200 across Daily, Weekly, and Monthly timeframes.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -523,11 +539,13 @@ def show_landing_page():
 
         if "landing_screener_df" in st.session_state:
             st.markdown("### Screener summary")
-            st.dataframe(style_screener_table(st.session_state.landing_screener_df), use_container_width=True, hide_index=True)
+            filtered_landing_df = apply_landing_table_filters(st.session_state.landing_screener_df)
+            st.caption(f"Showing {len(filtered_landing_df)} of {len(st.session_state.landing_screener_df)} ticker(s).")
+            st.dataframe(style_screener_table(filtered_landing_df), use_container_width=True, hide_index=True)
             st.download_button(
-                "Download screener table as CSV",
-                st.session_state.landing_screener_df.to_csv(index=False).encode("utf-8"),
-                "screener_summary.csv",
+                "Download filtered screener table as CSV",
+                filtered_landing_df.to_csv(index=False).encode("utf-8"),
+                "screener_summary_filtered.csv",
                 "text/csv",
             )
 
@@ -541,6 +559,9 @@ def show_landing_page():
         ### Table columns
         - **MonthlyMACD / WeeklyMACD / DailyMACD**: Bullish when MACD is above signal; Bearish when MACD is below signal.
         - **Price>DailySMA20 / 50 / 100 / 200**: Yes when latest daily close is above the selected daily SMA.
+        - **Price>WeeklySMA20 / 50 / 100 / 200**: Yes when latest weekly close is above the selected weekly SMA.
+        - **Price>MonthlySMA20 / 50 / 100 / 200**: Yes when latest monthly close is above the selected monthly SMA.
+        - Use the table filter panel to filter each MACD or SMA condition column.
         """)
     with c2:
         st.markdown("""
