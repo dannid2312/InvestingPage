@@ -699,11 +699,8 @@ with st.sidebar:
 
     st.markdown('<div class="section-label">Export watchlists</div>', unsafe_allow_html=True)
     watchlists_json_data = json.dumps(st.session_state.watchlists, indent=2).encode("utf-8")
-    if st.button("Save all watchlists to watchlists.json"):
-        save_watchlists(st.session_state.watchlists)
-        st.success("Saved all watchlists to watchlists.json.")
     st.download_button(
-        "Download watchlists.json",
+        "Download Watchlist",
         data=watchlists_json_data,
         file_name="watchlists.json",
         mime="application/json",
