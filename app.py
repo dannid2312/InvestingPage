@@ -137,6 +137,92 @@ def macd(close, fast=12, slow=26, signal=9):
     histogram = macd_line - signal_line
     return macd_line, signal_line, histogram
 
+def latest_sma_value(df, period):
+    """Return the latest SMA value, or None if there is not enough data."""
+    if df.empty or len(df) < period:
+        return None
+    value = df["close"].rolling(period).mean().iloc[-1]
+    return None if pd.isna(value) else float(value)
+
+
+def latest_macd_values(df):
+    """Return latest MACD and signal values, or (None, None) if unavailable."""
+    if df.empty or len(df) < 35:
+        return None, None
+    macd_line, signal_line, _ = macd(df["close"])
+    latest_macd = macd_line.iloc[-1]
+    latest_signal = signal_line.iloc[-1]
+    if pd.isna(latest_macd) or pd.isna(latest_signal):
+        return None, None
+    return float(latest_macd), float(latest_signal)
+
+
+def evaluate_filter_rule(symbol, rule, full_df):
+    """Evaluate one stock filter rule.
+
+    Daily rules use the currently selected chart interval data.
+    Weekly MACD rules fetch weekly data separately so the condition is truly weekly.
+    """
+    if full_df.empty:
+        return False
+
+    latest_close = float(full_df["close"].iloc[-1])
+
+    if rule == "Last Price > SMA20":
+        sma_value = latest_sma_value(full_df, 20)
+        return sma_value is not None and latest_close > sma_value
+    if rule == "Last Price > SMA50":
+        sma_value = latest_sma_value(full_df, 50)
+        return sma_value is not None and latest_close > sma_value
+    if rule == "Last Price > SMA100":
+        sma_value = latest_sma_value(full_df, 100)
+        return sma_value is not None and latest_close > sma_value
+    if rule == "Last Price > SMA200":
+        sma_value = latest_sma_value(full_df, 200)
+        return sma_value is not None and latest_close > sma_value
+
+    if rule == "Last Price < SMA20":
+        sma_value = latest_sma_value(full_df, 20)
+        return sma_value is not None and latest_close < sma_value
+    if rule == "Last Price < SMA50":
+        sma_value = latest_sma_value(full_df, 50)
+        return sma_value is not None and latest_close < sma_value
+    if rule == "Last Price < SMA100":
+        sma_value = latest_sma_value(full_df, 100)
+        return sma_value is not None and latest_close < sma_value
+    if rule == "Last Price < SMA200":
+        sma_value = latest_sma_value(full_df, 200)
+        return sma_value is not None and latest_close < sma_value
+
+    if rule == "MACD > Signal":
+        macd_value, signal_value = latest_macd_values(full_df)
+        return macd_value is not None and signal_value is not None and macd_value > signal_value
+    if rule == "MACD < Signal":
+        macd_value, signal_value = latest_macd_values(full_df)
+        return macd_value is not None and signal_value is not None and macd_value < signal_value
+
+    if rule == "Weekly MACD > Weekly Signal":
+        weekly_df = fetch_stock_history(symbol, "1wk")
+        macd_value, signal_value = latest_macd_values(weekly_df)
+        return macd_value is not None and signal_value is not None and macd_value > signal_value
+    if rule == "Weekly MACD < Weekly Signal":
+        weekly_df = fetch_stock_history(symbol, "1wk")
+        macd_value, signal_value = latest_macd_values(weekly_df)
+        return macd_value is not None and signal_value is not None and macd_value < signal_value
+
+    return True
+
+
+def stock_passes_filters(symbol, full_df, selected_filters, filter_match_mode):
+    """Return True if the stock satisfies the selected filters."""
+    if not selected_filters:
+        return True
+
+    results = [evaluate_filter_rule(symbol, rule, full_df) for rule in selected_filters]
+    if filter_match_mode == "Any selected filter":
+        return any(results)
+    return all(results)
+
 
 def overlay_label(settings, show_volume, show_rsi, show_macd):
     items = [name.replace("SMA", "SMA ") for name, enabled in settings.items() if enabled]
@@ -364,6 +450,32 @@ with st.sidebar:
     show_volume = st.toggle("Volume", value=True)
     show_rsi = st.toggle("RSI 14", value=False)
     show_macd = st.toggle("MACD", value=False)
+
+    st.divider()
+    st.header("Stock filters")
+    st.caption("Only charts matching these conditions will be shown.")
+    filter_options = [
+        "Last Price > SMA20",
+        "Last Price > SMA50",
+        "Last Price > SMA100",
+        "Last Price > SMA200",
+        "Last Price < SMA20",
+        "Last Price < SMA50",
+        "Last Price < SMA100",
+        "Last Price < SMA200",
+        "MACD > Signal",
+        "MACD < Signal",
+        "Weekly MACD > Weekly Signal",
+        "Weekly MACD < Weekly Signal",
+    ]
+    selected_filters = st.multiselect("Show stocks where", filter_options)
+    filter_match_mode = st.radio(
+        "Filter match mode",
+        ["All selected filters", "Any selected filter"],
+        horizontal=False,
+        disabled=not selected_filters,
+    )
+
     if st.button("Refresh market data"):
         fetch_stock_history.clear()
         st.rerun()
@@ -375,6 +487,8 @@ active = st.session_state.active_watchlist
 symbols = st.session_state.watchlists.get(active, [])
 st.subheader(active)
 st.caption(f"{len(symbols)} stock(s) in this watchlist")
+if selected_filters:
+    st.caption("Active filters: " + "; ".join(selected_filters) + f" · Mode: {filter_match_mode}")
 
 if not symbols:
     st.info("This watchlist is empty. Add a ticker above to show its candlestick chart.")
