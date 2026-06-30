@@ -331,6 +331,61 @@ def overlay_label(settings, show_volume, show_rsi, show_macd):
 # =============================================================================
 # Stock Screener-page screener summary table
 # =============================================================================
+def candlestick_pattern_status(df):
+    """Identify a practical latest-candle pattern for screener use."""
+    if df.empty or len(df) < 2:
+        return "N/A"
+
+    latest = df.iloc[-1]
+    previous = df.iloc[-2]
+
+    open_price = float(latest["open"])
+    high_price = float(latest["high"])
+    low_price = float(latest["low"])
+    close_price = float(latest["close"])
+
+    previous_open = float(previous["open"])
+    previous_high = float(previous["high"])
+    previous_low = float(previous["low"])
+    previous_close = float(previous["close"])
+
+    candle_range = max(high_price - low_price, 0.000001)
+    body = abs(close_price - open_price)
+    upper_wick = high_price - max(open_price, close_price)
+    lower_wick = min(open_price, close_price) - low_price
+
+    is_bullish = close_price > open_price
+    is_bearish = close_price < open_price
+    previous_bullish = previous_close > previous_open
+    previous_bearish = previous_close < previous_open
+
+    if len(df) >= 21:
+        prior_20_high = float(df["high"].iloc[-21:-1].max())
+        prior_20_low = float(df["low"].iloc[-21:-1].min())
+        if close_price > prior_20_high:
+            return "Breakout Candle"
+        if close_price < prior_20_low:
+            return "Breakdown Candle"
+
+    if previous_bearish and is_bullish and open_price <= previous_close and close_price >= previous_open:
+        return "Bullish Engulfing"
+    if previous_bullish and is_bearish and open_price >= previous_close and close_price <= previous_open:
+        return "Bearish Engulfing"
+
+    if high_price <= previous_high and low_price >= previous_low:
+        return "Inside Bar"
+    if high_price > previous_high and low_price < previous_low:
+        return "Outside Bar"
+
+    if body <= candle_range * 0.10:
+        return "Doji"
+    if lower_wick >= body * 2 and upper_wick <= body and body / candle_range <= 0.45:
+        return "Hammer"
+    if upper_wick >= body * 2 and lower_wick <= body and body / candle_range <= 0.45:
+        return "Shooting Star"
+
+    return "None"
+
 def screener_summary_row(symbol):
     daily = fetch_stock_history(symbol, "1d")
     weekly = fetch_stock_history(symbol, "1wk")
@@ -338,6 +393,9 @@ def screener_summary_row(symbol):
 
     row = {
         "Ticker": symbol,
+        "MonthlyPattern": candlestick_pattern_status(monthly),
+        "WeeklyPattern": candlestick_pattern_status(weekly),
+        "DailyPattern": candlestick_pattern_status(daily),
         "MonthlyMACD": macd_status(monthly),
         "WeeklyMACD": macd_status(weekly),
         "DailyMACD": macd_status(daily),
@@ -371,14 +429,20 @@ def build_screener_summary(symbols):
 
 def style_screener_table(df):
     def color_cells(value):
-        if value == "Bullish" or value == "Yes":
+        bullish_patterns = {"Bullish Engulfing", "Hammer", "Breakout Candle"}
+        bearish_patterns = {"Bearish Engulfing", "Shooting Star", "Breakdown Candle"}
+        neutral_patterns = {"Doji", "Inside Bar", "Outside Bar", "None"}
+
+        if value == "Bullish" or value == "Yes" or value in bullish_patterns:
             return "background-color: #dcfce7; color: #166534; font-weight: 800;"
-        if value == "Bearish" or value == "No" or value == "Weak":
+        if value == "Bearish" or value == "No" or value == "Weak" or value in bearish_patterns:
             return "background-color: #fee2e2; color: #991b1b; font-weight: 800;"
         if value == "Overbought":
             return "background-color: #fef3c7; color: #92400e; font-weight: 800;"
         if value == "Oversold":
             return "background-color: #dbeafe; color: #1e40af; font-weight: 800;"
+        if value in neutral_patterns:
+            return "background-color: #f8fafc; color: #475569; font-weight: 700;"
         if value == "N/A":
             return "background-color: #f1f5f9; color: #64748b; font-weight: 700;"
         return ""
@@ -540,7 +604,7 @@ def show_landing_page():
         <div class="hero-card">
           <div class="eyebrow">Stock screener landing page</div>
           <div class="hero-title">Upload a ticker CSV and screen market structure quickly.</div>
-          <p class="hero-copy">Create a summary table with Monthly, Weekly, and Daily MACD/RSI status plus price versus SMA20, SMA50, SMA100, and SMA200 across Daily, Weekly, and Monthly timeframes.</p>
+          <p class="hero-copy">Create a summary table with Monthly, Weekly, and Daily candlestick patterns, MACD/RSI status, volume, and price versus SMA20, SMA50, SMA100, and SMA200 across Daily, Weekly, and Monthly timeframes.</p>
         </div>
         """,
         unsafe_allow_html=True,
