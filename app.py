@@ -592,26 +592,6 @@ def show_landing_page():
                 fig = make_chart(graph_symbol, graph_df, graph_display_df, landing_settings, show_volume, show_rsi, show_macd, price_height)
                 st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
 
-    st.write("")
-    c1, c2 = st.columns([0.9, 1.1])
-    with c1:
-        st.markdown("""
-        ### Table columns
-        - **MonthlyMACD / WeeklyMACD / DailyMACD**: Bullish when MACD is above signal; Bearish when MACD is below signal.
-        - **Price>DailySMA20 / 50 / 100 / 200**: Yes when latest daily close is above the selected daily SMA.
-        - **Price>WeeklySMA20 / 50 / 100 / 200**: Yes when latest weekly close is above the selected weekly SMA.
-        - **Price>MonthlySMA20 / 50 / 100 / 200**: Yes when latest monthly close is above the selected monthly SMA.
-        - Use each dropdown in the table filter panel to filter MACD or SMA condition columns.
-        """)
-    with c2:
-        st.markdown("""
-        <div class="feature-grid">
-            <div class="feature-card"><h3>Green cells</h3><p>Bullish MACD or price above SMA.</p></div>
-            <div class="feature-card"><h3>Red cells</h3><p>Bearish MACD or price below SMA.</p></div>
-            <div class="feature-card"><h3>N/A cells</h3><p>Not enough data to compute the indicator.</p></div>
-        </div>
-        """, unsafe_allow_html=True)
-
 
 def show_screener_page():
     settings = {"SMA20": show_sma20, "SMA50": show_sma50, "SMA100": show_sma100, "SMA200": show_sma200, "Bollinger Bands": show_bbands}
